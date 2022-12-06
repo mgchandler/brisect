@@ -7,9 +7,12 @@ Created on Tue Dec  6 10:14:40 2022
 (v1) Script for the movement of the Zaber translation stage.
 Essentially just a copy-and-paste of Zaber's example script, with automatic
 working out which port the device is connected to.
+
+N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
+2 is the x-axis.
 """
 
-import serial.tools.list_ports as lp
+from serial.tools.list_ports import comports
 from zaber_motion import Units, Library
 from zaber_motion.ascii import Connection
 
@@ -17,10 +20,10 @@ def get_port(manufacturer="FTDI"):
     """
     Returns the port which the device of interest is connected to. Serial does
     not guarantee that comports() returns ports in order, thus we sort by port.
-    Only the first port which has the right manufacturer is retured; if none
-    present then RuntimeError is raised.
+    It is assumed that only one connection is available, thus the first one is
+    returned; if none available then RuntimeError raised.
     """
-    ports = sorted(lp.comports(), key=lambda port: port.device)
+    ports = sorted(comports(), key=lambda port: port.device)
     for port in ports:
         if port.manufacturer == manufacturer:
             return port.device
@@ -28,7 +31,6 @@ def get_port(manufacturer="FTDI"):
 
 # Enables script to be imported for use in other scripts
 if __name__ == "__main__":
-    #%% Find which port we are connected to
     com = get_port()
     
     #%% Open the connection
@@ -42,15 +44,14 @@ if __name__ == "__main__":
     with Connection.open_serial_port(com) as connection:
         device_list = connection.detect_devices()
         print("Found {} devices".format(len(device_list)))
+        
+        for dd, device in enumerate(device_list):
+            axis = device.get_axis(1)
+            axis.home()
+            print("Device {} streams {}".format(dd+1, device.settings.get('stream.numstreams')))
     
-        device = device_list[0]
-    
-        axis = device.get_axis(1)
-        if not axis.is_homed():
-          axis.home()
-    
-        # Move to 10mm
-        axis.move_absolute(10, Units.LENGTH_MILLIMETRES)
-    
-        # Move by an additional 5mm
-        axis.move_relative(5, Units.LENGTH_MILLIMETRES)
+            # # Move to 10mm
+            # axis.move_absolute(10, Units.LENGTH_MILLIMETRES)
+        
+            # # Move by an additional 5mm
+            # axis.move_relative(5, Units.LENGTH_MILLIMETRES)

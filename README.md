@@ -1,6 +1,6 @@
 # Translate Stage
 
-A Python library for automated translation of the Zaber linear stage. Written and tested using the X-LSM200A-E03 stage in the UNDT lab.
+A Python script for automated translation of the Zaber linear stage. Written and tested using the X-LSM200A-E03 stage in the UNDT lab.
 
 ## Setup
 
@@ -17,8 +17,11 @@ Clone this repo to your own device: navigate to the desired parent directory and
 
 ## To do list:
 
-- [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles.
+- [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles.  
+	- [ ] Use streams to do this? Store actions to the buffer and then stream them. Try triggers to start motion when desired.
 - [ ] Build in offline usage  
       (Function `zaber_motion.Library.enable_device_db_store()` updates local devices from internet. Want to have this behaviour by default, but fall back to local database if not connected / found).
-- [ ] Find a way to give it a path to follow (using `yaml`?)
+- [ ] Translate the stage along a predefined path (supplied by `yaml`?)  
+      Enables use of feedback loop to return to likely defect site.
+- [ ] Get to a point where the script can be run from the command line only - no additional scripting required.
 - [ ] GUI?
