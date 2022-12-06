@@ -18,10 +18,11 @@ Clone this repo to your own device: navigate to the desired parent directory and
 ## To do list:
 
 - [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles.  
-	- [ ] Use streams to do this? Store actions to the buffer and then stream them. Try triggers to start motion when desired.
+	- [ ] Investigate streams to do this. May need to update firmware as some functions introduced in v7, currently on v6.18 or so.
+	- [ ] Investigate a way to activate several streams at one time, or at least activate with minimal delay. Look at triggers to do this.
+- [ ] Translate the stage along a predefined path (supplied by `yaml`?)  
 - [ ] Build in offline usage  
       (Function `zaber_motion.Library.enable_device_db_store()` updates local devices from internet. Want to have this behaviour by default, but fall back to local database if not connected / found).
-- [ ] Translate the stage along a predefined path (supplied by `yaml`?)  
       Enables use of feedback loop to return to likely defect site.
 - [ ] Get to a point where the script can be run from the command line only - no additional scripting required.
 - [ ] GUI?

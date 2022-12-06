@@ -13,7 +13,7 @@ N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 """
 
 from serial.tools.list_ports import comports
-from zaber_motion import Units, Library
+from zaber_motion import Units, Library, Measurement
 from zaber_motion.ascii import Connection
 
 def get_port(manufacturer="FTDI"):
@@ -49,6 +49,33 @@ if __name__ == "__main__":
             axis = device.get_axis(1)
             axis.home()
             print("Device {} streams {}".format(dd+1, device.settings.get('stream.numstreams')))
+            # num_groups = device.settings.get('lockstep.numgroups')
+            # print('Number of lockstep groups possible: ', num_groups)
+            
+            if dd in [1, 2]: # Devices on x- and y-axes
+                stream = device.get_stream(1)
+                stream_buffer = device.get_stream_buffer(1)
+                # Currently breaks here:
+                stream_buffer.erase()
+                # Possibly due to firmware version? BADDATA error, not explained anywhere.
+                stream.setup_store(stream_buffer, 1)
+                
+                stream.set_max_speed(.1, Units.VELOCITY_CENTIMETRES_PER_SECOND)
+                stream.line_relative(Measurement(10, Units.LENGTH_MILLIMETRES))
+                stream.set_max_speed(.5, Units.VELOCITY_CENTIMETRES_PER_SECOND)
+                stream.line_relative(Measurement(20, Units.LENGTH_MILLIMETRES))
+                
+                content = stream_buffer.get_content()
+                print(content)
+                
+                stream.disable()
+                stream.setup_live(1,1)
+                
+        for dd, device in enumerate(device_list):
+            if dd in [1, 2]:
+                stream = device.get_stream(1)
+                stream.call(stream_buffer)
+            
     
             # # Move to 10mm
             # axis.move_absolute(10, Units.LENGTH_MILLIMETRES)
