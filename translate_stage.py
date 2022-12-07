@@ -12,7 +12,9 @@ N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 2 is the x-axis.
 """
 
+import numpy as np
 from serial.tools.list_ports import comports
+import time
 from zaber_motion import Units, Library, Measurement
 from zaber_motion.ascii import Connection
 
@@ -39,46 +41,49 @@ if __name__ == "__main__":
         Library.enable_device_db_store()
     except NotImplementedError:
         pass #TODO: Demand local storage of device database
+        
+    T = 15
+    r = 30e-3
+    N = 18
+    
+    v0 = 2*np.pi*r / T
+    dt = T / N
     
     # Open a connection to the device
     with Connection.open_serial_port(com) as connection:
         device_list = connection.detect_devices()
         print("Found {} devices".format(len(device_list)))
         
-        for dd, device in enumerate(device_list):
-            axis = device.get_axis(1)
-            axis.home()
-            print("Device {} streams {}".format(dd+1, device.settings.get('stream.numstreams')))
-            # num_groups = device.settings.get('lockstep.numgroups')
-            # print('Number of lockstep groups possible: ', num_groups)
-            
-            if dd in [1, 2]: # Devices on x- and y-axes
-                stream = device.get_stream(1)
-                stream_buffer = device.get_stream_buffer(1)
-                # Currently breaks here:
-                stream_buffer.erase()
-                # Possibly due to firmware version? BADDATA error, not explained anywhere.
-                stream.setup_store(stream_buffer, 1)
-                
-                stream.set_max_speed(.1, Units.VELOCITY_CENTIMETRES_PER_SECOND)
-                stream.line_relative(Measurement(10, Units.LENGTH_MILLIMETRES))
-                stream.set_max_speed(.5, Units.VELOCITY_CENTIMETRES_PER_SECOND)
-                stream.line_relative(Measurement(20, Units.LENGTH_MILLIMETRES))
-                
-                content = stream_buffer.get_content()
-                print(content)
-                
-                stream.disable()
-                stream.setup_live(1,1)
-                
-        for dd, device in enumerate(device_list):
-            if dd in [1, 2]:
-                stream = device.get_stream(1)
-                stream.call(stream_buffer)
-            
-    
-            # # Move to 10mm
-            # axis.move_absolute(10, Units.LENGTH_MILLIMETRES)
+        axis1 = device_list[1].get_axis(1)
+        axis2 = device_list[2].get_axis(1)
+        axis1.home()
+        axis2.home()
+        axis1.move_absolute(10, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
+        axis2.move_absolute(8.5, Units.LENGTH_CENTIMETRES, wait_until_idle=True)
         
-            # # Move by an additional 5mm
-            # axis.move_relative(5, Units.LENGTH_MILLIMETRES)
+        print("doing bad circle")
+        
+        #%% Test 1: Try a bad circle by changing velocity
+        circle = v0*np.exp(2j*np.pi*np.linspace(0, 1, N))
+        for dt in range(N):
+            axis1.move_velocity(np.real(circle), Units.VELOCITY_CENTIMETRES_PER_SECOND)
+            axis2.move_velocity(np.imag(circle), Units.VELOCITY_CENTIMETRES_PER_SECOND)
+            time.sleep(dt)
+            
+        print("setting maxspeed")
+        
+        #%% Test 2: Try changing maxspeed
+        axis1.move_absolute(5, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
+        axis2.move_absolute(5, Units.LENGTH_CENTIMETRES, wait_until_idle=True)
+        axis1.generic_command("1 set maxspeed 0.1")
+        axis2.generic_command("1 set maxspeed 0.1")
+        axis1.move_relative(10, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
+        axis2.move_relative(10, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
+        time.sleep(2)
+        axis1.generic_command("1 set maxspeed 0.5")
+        axis2.generic_command("1 set maxspeed 0.2")
+        time.sleep(2)
+        axis1.generic_command("1 set maxspeed 0.1")
+        axis2.generic_command("1 set maxspeed 0.1")
+        
+        axis1.settings.set("maxspeed", .1, Units.VELOCITY_CENTIMETRES_PER_SECOND)

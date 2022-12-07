@@ -17,8 +17,8 @@ Clone this repo to your own device: navigate to the desired parent directory and
 
 ## To do list:
 
-- [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles.  
-	- [ ] Investigate streams to do this. May need to update firmware as some functions introduced in v7, currently on v6.18 or so.
+- [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles. 
+	- [ ] Investigate streams to do this. May need to update firmware as some functions introduced in v7. x- and y-axes currently on v6.19, z-axis on 7.8.
 	- [ ] Investigate a way to activate several streams at one time, or at least activate with minimal delay. Look at triggers to do this.
 - [ ] Translate the stage along a predefined path (supplied by `yaml`?)  
 - [ ] Build in offline usage  
