@@ -1,6 +1,7 @@
-# Translate Stage
+# ECT Smart Scan
 
-A Python script for automated translation of the Zaber linear stage. Written and tested using the X-LSM200A-E03 stage in the UNDT lab.
+A Python library for automated scanning of a metallic component using eddy current coil. 2D scanning using Zaber linear stages enabled using feedback from measurements made by a Handyscope.
+Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UNDT lab, with Handyscope HS5 making measurements.
 
 ## Setup
 
@@ -21,7 +22,7 @@ Make a fork of this repo on GitHub, and clone it to your device. Make changes th
 - Zaber motion package:
 	- [x] Investigate how to move two devices at once, and make complex trajectory using both.
 		- [x] move_relative() fns take velocity arguments in v7 - cannot update beyond v6.
-		- [x] Manually reproduce move_relative using device.set("maxspeed", vel) for each axis and then do the movement.
+		- [x] Manually reproduce move_relative using `axis.settings.set("maxspeed", velocity)` for each axis and then do the movement.
 		- [ ] Look at streaming to reduce stop/start motion when making arcs.
 		- [ ] Investigate triggers to adjust speed to make arcs.
 	- [ ] Specify trajectory using external definition (e.g. `yaml` file?)
