@@ -30,6 +30,27 @@ def get_port(manufacturer="FTDI"):
         if port.manufacturer == manufacturer:
             return port.device
     raise RuntimeError("Device cannot be found! Connect it and make sure drivers are installed.")
+    
+def move_abs_v(axis, distance, dist_units=Units.LENGTH_MILLIMETRES, wait_until_idle=True, velocity=10, vel_units=Units.VELOCITY_MILLIMETRES_PER_SECOND):
+    """
+    Mimics the v7 firmware version of axis.move_absolute() for which velocity
+    can be specified. Overwrites the max speed of the axis to do this, and does
+    not undo it afterwards.
+    """
+    axis.settings.set("maxspeed", velocity, vel_units)
+    axis.move_absolute(distance, dist_units, wait_until_idle=wait_until_idle)
+    
+def move_rel_v(axis, distance, dist_units=Units.LENGTH_MILLIMETRES, wait_until_idle=True, velocity=10, vel_units=Units.VELOCITY_MILLIMETRES_PER_SECOND):
+    """
+    Mimics the v7 firmware version of axis.move_relative() for which velocity
+    can be specified. Overwrites the max speed of the axis to do this, and does
+    not undo it afterwards.
+    """
+    axis.settings.set("maxspeed", velocity, vel_units)
+    axis.move_relative(distance, dist_units, wait_until_idle=wait_until_idle)
+
+# move_rel_v(axis1, 10, velocity=1)
+# move_rel_v(axis1, -10, velocity=5)
 
 # Enables script to be imported for use in other scripts
 if __name__ == "__main__":
@@ -42,48 +63,43 @@ if __name__ == "__main__":
     except NotImplementedError:
         pass #TODO: Demand local storage of device database
         
-    T = 15
-    r = 30e-3
-    N = 18
+    T = 10
+    r = 25
+    N = 32
     
     v0 = 2*np.pi*r / T
     dt = T / N
     
+    circle_r = np.round(r *np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1] * 1j, 6)
+    circle_v = np.round(v0*np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1], 6)
+    
     # Open a connection to the device
     with Connection.open_serial_port(com) as connection:
         device_list = connection.detect_devices()
-        print("Found {} devices".format(len(device_list)))
-        
         axis1 = device_list[1].get_axis(1)
         axis2 = device_list[2].get_axis(1)
-        axis1.home()
-        axis2.home()
-        axis1.move_absolute(10, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
-        axis2.move_absolute(8.5, Units.LENGTH_CENTIMETRES, wait_until_idle=True)
         
-        print("doing bad circle")
+        # Centre the stage
+        move_abs_v(axis1, 100, velocity=10)
+        move_abs_v(axis2, 85, velocity=10)
         
-        #%% Test 1: Try a bad circle by changing velocity
-        circle = v0*np.exp(2j*np.pi*np.linspace(0, 1, N))
-        for dt in range(N):
-            axis1.move_velocity(np.real(circle), Units.VELOCITY_CENTIMETRES_PER_SECOND)
-            axis2.move_velocity(np.imag(circle), Units.VELOCITY_CENTIMETRES_PER_SECOND)
-            time.sleep(dt)
-            
-        print("setting maxspeed")
-        
-        #%% Test 2: Try changing maxspeed
-        axis1.move_absolute(5, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
-        axis2.move_absolute(5, Units.LENGTH_CENTIMETRES, wait_until_idle=True)
-        axis1.generic_command("1 set maxspeed 0.1")
-        axis2.generic_command("1 set maxspeed 0.1")
-        axis1.move_relative(10, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
-        axis2.move_relative(10, Units.LENGTH_CENTIMETRES, wait_until_idle=False)
-        time.sleep(2)
-        axis1.generic_command("1 set maxspeed 0.5")
-        axis2.generic_command("1 set maxspeed 0.2")
-        time.sleep(2)
-        axis1.generic_command("1 set maxspeed 0.1")
-        axis2.generic_command("1 set maxspeed 0.1")
-        
-        axis1.settings.set("maxspeed", .1, Units.VELOCITY_CENTIMETRES_PER_SECOND)
+        #%% Trace a circle in 1 axis
+        for ii in range(N):
+            print("ax1 r: {:.4f}mm; v: {:.4f}mm/s".format(100+np.real(circle_r[ii]), np.abs(np.real(circle_v[ii]))))
+            print("ax2 r: {:.4f}mm; v: {:.4f}mm/s".format(100+np.imag(circle_r[ii]), np.abs(np.imag(circle_v[ii]))))
+            t1 = time.time_ns()
+            # If axis1 doesn't move
+            if np.abs(np.real(circle_v[ii])) == 0:
+                print("Move axis2")
+                move_abs_v(axis2, 100+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])))
+            # If axis2 doesn't move
+            elif np.abs(np.imag(circle_v[ii])) == 0:
+                print("Move axis 1")
+                move_abs_v(axis1, 100+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])))
+            else:
+                print("Move both axes")
+                move_abs_v(axis1, 100+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), wait_until_idle=False)
+                move_abs_v(axis2, 100+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])))
+            t2 = time.time_ns()
+            # print((t2-t1)*10**-9)
+

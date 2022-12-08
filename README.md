@@ -18,11 +18,14 @@ Clone this repo to your own device: navigate to the desired parent directory and
 ## To do list:
 
 - [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles. 
-	- [ ] Investigate streams to do this. May need to update firmware as some functions introduced in v7. x- and y-axes currently on v6.19, z-axis on 7.8.
+	- [x] Investigate streams to do this. May need to update firmware as some functions introduced in v7. x- and y-axes currently on v6.19, z-axis on 7.8.
+	- [x] Firmware update not possible: devices cannot be updated outside of their major version. Setting `maxspeed` via composite move_rel_v() and move_abs_v() functions works on stage on v6.28 - need to test circle tracing on double stage.
 	- [ ] Investigate a way to activate several streams at one time, or at least activate with minimal delay. Look at triggers to do this.
+	- [ ] For arc: consider moving it from start to end, and use triggers to change the speed
 - [ ] Translate the stage along a predefined path (supplied by `yaml`?)  
 - [ ] Build in offline usage  
       (Function `zaber_motion.Library.enable_device_db_store()` updates local devices from internet. Want to have this behaviour by default, but fall back to local database if not connected / found).
       Enables use of feedback loop to return to likely defect site.
 - [ ] Get to a point where the script can be run from the command line only - no additional scripting required.
+- [ ] Feedback loop from coil output
 - [ ] GUI?
