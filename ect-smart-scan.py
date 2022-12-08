@@ -49,9 +49,6 @@ def move_rel_v(axis, distance, dist_units=Units.LENGTH_MILLIMETRES, wait_until_i
     axis.settings.set("maxspeed", velocity, vel_units)
     axis.move_relative(distance, dist_units, wait_until_idle=wait_until_idle)
 
-# move_rel_v(axis1, 10, velocity=1)
-# move_rel_v(axis1, -10, velocity=5)
-
 # Enables script to be imported for use in other scripts
 if __name__ == "__main__":
     com = get_port()
