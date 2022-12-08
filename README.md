@@ -18,15 +18,26 @@ Make a fork of this repo on GitHub, and clone it to your device. Make changes th
 
 ## To do list:
 
-- [ ] Figure out how to move more than one device at a time. End goal: trace out diagonals and circles. 
-	- [x] Investigate streams to do this. May need to update firmware as some functions introduced in v7. x- and y-axes currently on v6.19, z-axis on 7.8.
-	- [x] Firmware update not possible: devices cannot be updated outside of their major version. Setting `maxspeed` via composite move_rel_v() and move_abs_v() functions works on stage on v6.28 - need to test circle tracing on double stage.
-	- [ ] Investigate a way to activate several streams at one time, or at least activate with minimal delay. Look at triggers to do this.
-	- [ ] For arc: consider moving it from start to end, and use triggers to change the speed
-- [ ] Translate the stage along a predefined path (supplied by `yaml`?)  
-- [ ] Build in offline usage  
-      (Function `zaber_motion.Library.enable_device_db_store()` updates local devices from internet. Want to have this behaviour by default, but fall back to local database if not connected / found).
-      Enables use of feedback loop to return to likely defect site.
-- [ ] Get to a point where the script can be run from the command line only - no additional scripting required.
-- [ ] Feedback loop from coil output
-- [ ] GUI?
+- Zaber motion package:
+	- [x] Investigate how to move two devices at once, and make complex trajectory using both.
+		- [x] move_relative() fns take velocity arguments in v7 - cannot update beyond v6.
+		- [x] Manually reproduce move_relative using device.set("maxspeed", vel) for each axis and then do the movement.
+		- [ ] Look at streaming to reduce stop/start motion when making arcs.
+		- [ ] Investigate triggers to adjust speed to make arcs.
+	- [ ] Specify trajectory using external definition (e.g. `yaml` file?)
+	- [ ] Offline usage (function `zaber_motion.Library.enable_device_db_store()` updates from internet - need alternative behaviour when not available).
+- Handyscope package:
+	- [ ] Read in magnitude and phase data.
+	- [ ] Process input data to meaningful form.
+- Feedback loop for detection:
+	- [ ] Determine geometry of the part being inspected.
+		- [ ] Coarse scan of entire domain with zaber.
+		- [ ] In first instance, fit a box to metallic region.
+		- [ ] More clever prediction of geometry from resulting map.
+	- [ ] Coarse scan of part for defects.
+		- [ ] Similar scanning of part domain.
+		- [ ] Look for deviations from pristine material.
+		- [ ] Identify a way to return to these regions for a more fine scan
+- Miscellaneous:
+	- [ ] Run program from command line, return all useful analysis as plots or print to screen.
+	- [ ] GUI?
