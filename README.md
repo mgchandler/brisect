@@ -10,10 +10,11 @@ To get started, a Python installation with `zaber-motion` and `pyserial` package
 List additional desired packages at the end of the command (e.g. `numpy`, `scipy`, `matplotlib`, `spyder`).
 - Activate the environment: `mamba activate translate_stage
 - Install the `zaber-motion` package: `python -m pip install --user zaber-motion`
+- Install the `libtiepie` package: `python -m pip install python-libtiepie`
 
 You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install.
 
-Clone this repo to your own device: navigate to the desired parent directory and use `git clone https://github.com/mgchandler/translate_stage.git` to download the repo. When an update is made available, use `git pull` to pull the latest version to your device.
+Make a fork of this repo on GitHub, and clone it to your device. Make changes there, and then make a pull request when significant changes made.
 
 ## To do list:
 
