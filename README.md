@@ -7,10 +7,10 @@ Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UND
 
 To get started, a Python installation with `zaber-motion` and `pyserial` packages is required. Suggested to set up a new environment using `mamba`:
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
-- Create a new environment from the Miniforge Prompt: `mamba create -n translate_stage pyserial`  
+- Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan pyserial`  
 List additional desired packages at the end of the command (e.g. `numpy`, `scipy`, `matplotlib`, `spyder`).
-- Activate the environment: `mamba activate translate_stage
-- Install the `zaber-motion` package: `python -m pip install --user zaber-motion`
+- Activate the environment: `mamba activate ect-smart-scan
+- Install the `zaber-motion` package: `python -m pip install zaber-motion`
 - Install the `libtiepie` package: `python -m pip install python-libtiepie`
 
 You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install.
