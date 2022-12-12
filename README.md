@@ -7,7 +7,7 @@ Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UND
 
 To get started, a Python installation with `zaber-motion` and `pyserial` packages is required. Suggested to set up a new environment using `mamba`:
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
-- Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan pyserial`  
+- Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan matplotlib numpy pyserial`  
 List additional desired packages at the end of the command (e.g. `numpy`, `scipy`, `matplotlib`, `spyder`).
 - Activate the environment: `mamba activate ect-smart-scan
 - Install the `zaber-motion` package: `python -m pip install zaber-motion`
@@ -29,6 +29,7 @@ Make a fork of this repo on GitHub, and clone it to your device. Make changes th
 	- [ ] Offline usage (function `zaber_motion.Library.enable_device_db_store()` updates from internet - need alternative behaviour when not available).
 - Handyscope package:
 	- [ ] Read in magnitude and phase data.
+		- [ ] Read in data in real time as well!
 	- [ ] Process input data to meaningful form.
 - Feedback loop for detection:
 	- [ ] Determine geometry of the part being inspected.
@@ -40,5 +41,7 @@ Make a fork of this repo on GitHub, and clone it to your device. Make changes th
 		- [ ] Look for deviations from pristine material.
 		- [ ] Identify a way to return to these regions for a more fine scan
 - Miscellaneous:
+	- [ ] Select a more appropriate capacitor.
+	- [ ] Select a more appropriate frequency.
 	- [ ] Run program from command line, return all useful analysis as plots or print to screen.
 	- [ ] GUI?
