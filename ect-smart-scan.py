@@ -11,14 +11,21 @@ working out which port the device is connected to.
 N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 2 is the x-axis.
 """
+import handyscope as hs
 import helpers as h
+import libtiepie as ltp
+import sys
 import trajectory as traj
+import warnings
 from zaber_motion import Library
 from zaber_motion.ascii import Connection
 
 # Enables script to be imported for use in other scripts
 if __name__ == "__main__":
-    com = h.get_port()
+    try:
+        com = h.get_port()
+    except RuntimeError:
+        warnings.warn("Zaber port not found - proceeding without")
     
     # Update devices from internet
     try:
@@ -30,10 +37,15 @@ if __name__ == "__main__":
     r = 25
     N = 32
     
-    # Open a connection to the device
-    with Connection.open_serial_port(com) as connection:
-        device_list = connection.detect_devices()
-        axis1 = device_list[1].get_axis(1)
-        axis2 = device_list[2].get_axis(1)
-        
-        traj.circle_polygonal(axis1, axis2, [100, 100], r, N, T)
+    ltp.network.auto_detect_enabled = True
+    ltp.device_list.update()
+    
+    gen_idx = h.find_gen(ltp.device_list)
+    scp_idx = h.find_scp(ltp.device_list)
+    with hs.open_gen(ltp.device_list.get_item_by_index(gen_idx)) as gen:
+        print(gen.name)
+        print(gen.type)
+        with hs.open_scp(ltp.device_list.get_item_by_index(scp_idx)) as scp:
+            # Do all the handyscope stuff here
+            print(scp.name)
+            print(scp.type)

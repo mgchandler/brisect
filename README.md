@@ -5,14 +5,14 @@ Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UND
 
 ## Setup
 
-To get started, a Python installation with `zaber-motion` and `pyserial` packages is required. Suggested to set up a new environment using `mamba`:
+To get started, a Python installation with `zaber-motion` and `python-libtiepie` packages is required. Suggested to set up a new environment using `mamba`:
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
 - Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan matplotlib numpy pyserial spyder` 
-- Activate the environment: `mamba activate ect-smart-scan`  
+- Activate the environment: `mamba activate ect-smart-scan  
 - Install the `zaber-motion` package: `python -m pip install zaber-motion`
 - Install the `libtiepie` package: `python -m pip install python-libtiepie`
 
-You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install.
+You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install. TiePie driver v10 doesn't work with `python-libtiepie`, use v8.1.9 instead.
 
 Make a fork of this repo on GitHub, and clone it to your device. Make changes there, and then make a pull request when significant changes made.
 
@@ -20,13 +20,15 @@ Make a fork of this repo on GitHub, and clone it to your device. Make changes th
 
 - Zaber motion package:
 	- [x] Investigate how to move two devices at once, and make complex trajectory using both.
-		- [x] move_relative() fns take velocity arguments in v7 - cannot update beyond v6.
+		- [x] `move_relative()` fns take velocity arguments in v7 - cannot update beyond v6.
 		- [x] Manually reproduce move_relative using `axis.settings.set("maxspeed", velocity)` for each axis and then do the movement.
 		- [ ] Look at streaming to reduce stop/start motion when making arcs.
 		- [ ] Investigate triggers to adjust speed to make arcs.
 	- [ ] Specify trajectory using external definition (e.g. `yaml` file?)
 	- [ ] Offline usage (function `zaber_motion.Library.enable_device_db_store()` updates from internet - need alternative behaviour when not available).
 - Handyscope package:
+	- [x] Work out why Python cannot communicate with Handyscopes
+		- Current `python-libtiepie` version does not work with most recent drivers - use v8.1.9
 	- [ ] Read in magnitude and phase data.
 		- [ ] Read in data in real time as well!
 	- [ ] Process input data to meaningful form.
