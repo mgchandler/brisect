@@ -51,7 +51,7 @@ def find_gen(device_list):
     """
     for idx, item in enumerate(device_list):
         if item.can_open(ltp.DEVICETYPE_GENERATOR):
-            with hs.open_gen(item) as gen:
+            with hs.open_gen(item, 1e3, 0.1) as gen:
             # with item.open_generator() as gen:
                 if gen.signal_types and ltp.ST_ARBITRARY:
                     gen_pass = True
@@ -68,7 +68,7 @@ def find_scp(device_list):
     """
     for idx, item in enumerate(device_list):
         if item.can_open(ltp.DEVICETYPE_OSCILLOSCOPE):
-            with hs.open_scp(item) as scp:
+            with hs.open_scp(item, 1e3, 10, 1) as scp:
                 if scp.measure_modes and ltp.MM_BLOCK:
                     scp_pass = True
                 else:
