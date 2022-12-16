@@ -9,6 +9,7 @@ any other file.
 """
 import handyscope as hs
 import libtiepie as ltp
+import numpy as np
 from serial.tools.list_ports import comports
 from zaber_motion import Units
 
@@ -51,13 +52,9 @@ def find_gen(device_list):
     """
     for idx, item in enumerate(device_list):
         if item.can_open(ltp.DEVICETYPE_GENERATOR):
-            with hs.open_gen(item, 1e3, 0.1) as gen:
-            # with item.open_generator() as gen:
-                if gen.signal_types and ltp.ST_ARBITRARY:
-                    gen_pass = True
-                else:
-                    gen_pass = False
-            if gen_pass:
+            gen = item.open_generator()
+            if gen.signal_types and ltp.ST_ARBITRARY:
+                # del gen
                 return idx
     return None
 
@@ -68,11 +65,14 @@ def find_scp(device_list):
     """
     for idx, item in enumerate(device_list):
         if item.can_open(ltp.DEVICETYPE_OSCILLOSCOPE):
-            with hs.open_scp(item, 1e3, 10, 1) as scp:
-                if scp.measure_modes and ltp.MM_BLOCK:
-                    scp_pass = True
-                else:
-                    scp_pass = False
-            if scp_pass:
+            scp = item.open_oscilloscope()
+            if scp.measure_modes and ltp.MM_BLOCK:
+                # del scp
                 return idx
     return None
+
+def rms(x):
+    """
+    Compute the root-mean-square of a numpy vector.
+    """
+    return np.sqrt(np.mean(np.asarray(x)**2))
