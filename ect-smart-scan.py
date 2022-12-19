@@ -20,7 +20,7 @@ import sys
 import time
 import trajectory as traj
 import warnings
-from zaber_motion import Library
+from zaber_motion import Library, Units
 from zaber_motion.ascii import Connection
 
 # Enables script to be imported for use in other scripts
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # ltp.network.auto_detect_enabled = True
     ltp.device_list.update()
     
-    gen_freq = 13e6
+    gen_freq = 13.5e6
     sample_freq = 5e8
     record_length = 50000
     
@@ -63,6 +63,7 @@ if __name__ == "__main__":
             traj.move_abs_v(axis2, 75, velocity=1, wait_until_idle=False)  
             
             t_data   = []
+            d_data   = []
             rms_data = []
             start_time = time.time_ns()*10**-9
             try:
@@ -76,15 +77,17 @@ if __name__ == "__main__":
                     # handyscope.new_params(input_frequency=gen_freq, output_sample_frequency=sample_freq, output_record_length=record_length)
                     np_data = np.asarray(handyscope.get_record())
                     t_data.append(time.time_ns()*10**-9 - start_time)
+                    d_data.append(axis2.get_position(Units.LENGTH_MILLIMETRES))
                     rms_val = h.rms(np_data[0, :])
                     print(rms_val)
                     rms_data.append(rms_val)
                     
-                    plt.plot(t_data * 1e6, rms_data)
-                    plt.xlabel("Time (us)")
+                    plt.plot(d_data, rms_data)
+                    plt.xlabel("Position (mm)")
                     plt.ylabel("RMS Voltage (V)")
+                    plt.title("Excitation Frequency {:.3e}Hz".format(handyscope.gen.frequency))
                     plt.show()
                     # break
             except KeyboardInterrupt:
-                plt.plot(t_data, rms_data)
+                plt.plot(d_data, rms_data)
                 raise KeyboardInterrupt
