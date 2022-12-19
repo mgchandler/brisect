@@ -16,7 +16,7 @@ generator:
     type: ST_SINE
     
     # <float> ST_SINE REQUIRED Frequency of sinusoidal input signal (Hz). Only required for ST_SINE type.
-    frequency: 13e6
+    frequency: 13.0e+6
     
   # <float> REQUIRED Amplitude (V).
   amplitude: 0.1
@@ -26,16 +26,26 @@ generator:
     
 oscilloscope:
   # <float> REQUIRED Sample frequency. Should be >= 2*f_max, with f_max the largest frequency of interest. Maximum value for HS5 is 5e8
-  frequency: 5e8
+  frequency: 5.0e+8
   
   # <str> OPTIONAL Mode of measurement. Currently supports: MM_BLOCK
-  # mode: MM_BLOCK
+  mode: MM_BLOCK
   
   # <int> OPTIONAL Bit resolution
-  # resolution: 12
+  resolution: 12
   
   # <int> REQUIRED Record length. Number of samples to take in scan.
   record_length: 50000
+  
+  # <float> REQUIRED Range for detection (V).
+  range: 1
+  
+  # <int list> OPTIONAL List of active channels to measure over. Use to receive on all channels.
+  active_channels:
+   - 0
+  
+  # <str> OPTIONAL Method of coupling of each channel.
+  coupling: CK_ACV
 
 
 

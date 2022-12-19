@@ -12,6 +12,7 @@ from helpers import find_gen, find_scp
 import libtiepie as ltp
 import numpy as np
 import time
+import yaml
 
 gen_dict  = {'input_frequency':'frequency',
              'input_amplitude':'amplitude',
@@ -21,6 +22,11 @@ scp_dict  = {'output_sample_frequency':'sample_frequency',
              'output_record_length':'record_length',
              'output_measure_mode':'measure_mode',
              'output_resolution':'resolution'}
+mode_dict = {'ST_SINE':ltp.ST_SINE,
+             'ST_ARBITRARY':ltp.ST_ARBITRARY,
+             'MM_BLOCK':ltp.MM_BLOCK,
+             'CK_ATV':ltp.CK_ACV,
+             'CK_OHM':ltp.CK_OHM}
         
 class Handyscope:
     """ Container for libtiepie's Generator and Oscilloscope classes. Use as a
@@ -29,6 +35,7 @@ class Handyscope:
     __slots__ = ('gen', 'scp')
     
     def __init__(self, input_frequency, input_amplitude, output_sample_frequency, output_record_length, output_range, input_signal_type=ltp.ST_SINE, input_offset=0, output_measure_mode=ltp.MM_BLOCK, output_resolution=12, output_active_channels=-1, output_channel_coupling=ltp.CK_ACV):
+        ltp.device_list.update()
         self.gen = ltp.device_list.get_item_by_index(find_gen(ltp.device_list)).open_generator()
         self.scp = ltp.device_list.get_item_by_index(find_scp(ltp.device_list)).open_oscilloscope()
         
@@ -53,6 +60,24 @@ class Handyscope:
         self.scp.measure_mode     = output_measure_mode
         self.scp.resolution       = output_resolution
         self.scp.record_length    = int(output_record_length)
+    
+    @class_method
+    def from_yaml(cls, filename):
+        with open(filename, 'r') as file:
+            settings = yaml.safe_load(file)
+        return cls(
+            settings["generator"]["signal"]["frequency"],
+            settings["generator"]["amplitude"],
+            settings["oscilloscope"]["frequency"],
+            settings["oscilloscope"]["record_length"],
+            settings["oscilloscope"]["range"],
+            input_signal_type       = mode_dict[settings["generator"]["signal"]["type"]],
+            input_offset            = settings["generator"]["offset"],
+            output_measure_mode     = mode_dict[settings["oscilloscope"]["mode"]],
+            output_resolution       = settings["oscilloscope"]["resolution"],
+            output_active_channels  = settings["oscilloscope"]["active_channels"],
+            output_channel_coupling = mode_dict[settings["oscilloscope"]["coupling"]]
+        )
     
     def __enter__(self):
         """ Do the setup and return. """
