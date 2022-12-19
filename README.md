@@ -41,6 +41,8 @@ Make a fork of this repo on GitHub, and clone it to your device. Make changes th
 		- [ ] Similar scanning of part domain.
 		- [ ] Look for deviations from pristine material.
 		- [ ] Identify a way to return to these regions for a more fine scan
+	- [ ] For phase: compare phase difference of input signal to output signal.
+		- [ ] Check how good our generated input signal is, vs channel measurement on handyscope
 - Miscellaneous:
 	- [ ] Select a more appropriate capacitor.
 	- [ ] Select a more appropriate frequency.

@@ -43,6 +43,8 @@ if __name__ == "__main__":
     sample_freq = 5e8
     record_length = 50000
     
+    target = 75
+    
     with Connection.open_serial_port(com) as connection:
         device_list = connection.detect_devices()
         axis1 = device_list[1].get_axis(1)
@@ -53,41 +55,32 @@ if __name__ == "__main__":
             np_data = np.asarray(handyscope.get_record())
             t = np.linspace(0, (handyscope.scp.record_length-1) / handyscope.scp.sample_frequency, int(handyscope.scp.record_length))
             
-            plt.plot(t * 1e6, np_data[0, :])
-            plt.xlabel("Time (us)")
-            plt.ylabel("Voltage (V)")
-            plt.show()
-            
             traj.move_abs_v(axis1, 51)
             traj.move_abs_v(axis2, 140)
-            traj.move_abs_v(axis2, 75, velocity=1, wait_until_idle=False)  
+            traj.move_abs_v(axis2, target, velocity=2, wait_until_idle=False)  
             
             t_data   = []
             d_data   = []
             rms_data = []
             start_time = time.time_ns()*10**-9
             try:
-                while True:
-                    # gen_freq = 13e6
-                    # n_cycles = 10
-                    # n_samples_per_cycle = 50
-                    # sample_freq = int(gen_freq * n_samples_per_cycle)
-                    # record_length = int(n_cycles * sample_freq / gen_freq) + 1
-                    
-                    # handyscope.new_params(input_frequency=gen_freq, output_sample_frequency=sample_freq, output_record_length=record_length)
+                while abs(target - axis2.get_position(Units.LENGTH_MILLIMETRES)) > 1e-5:
                     np_data = np.asarray(handyscope.get_record())
                     t_data.append(time.time_ns()*10**-9 - start_time)
                     d_data.append(axis2.get_position(Units.LENGTH_MILLIMETRES))
                     rms_val = h.rms(np_data[0, :])
-                    print(rms_val)
                     rms_data.append(rms_val)
                     
                     plt.plot(d_data, rms_data)
                     plt.xlabel("Position (mm)")
                     plt.ylabel("RMS Voltage (V)")
-                    plt.title("Excitation Frequency {:.3e}Hz".format(handyscope.gen.frequency))
+                    plt.title("Gen Freq {:.3f}MHz - Amp {:.3f}V".format(handyscope.gen.frequency*10**-6, handyscope.gen.amplitude))
                     plt.show()
-                    # break
             except KeyboardInterrupt:
+                plt.figure()
                 plt.plot(d_data, rms_data)
+                plt.xlabel("Position (mm)")
+                plt.ylabel("RMS Voltage (V)")
+                plt.title("Gen Freq {:.3f}MHz - Amp {:.3f}V".format(handyscope.gen.frequency*10**-6, handyscope.gen.amplitude))
+                plt.show()
                 raise KeyboardInterrupt
