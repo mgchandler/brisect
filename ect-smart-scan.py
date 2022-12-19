@@ -40,40 +40,51 @@ if __name__ == "__main__":
     ltp.device_list.update()
     
     gen_freq = 13e6
-    sample_freq = 1e9
-    record_length = 1e6
+    sample_freq = 5e8
+    record_length = 50000
     
-    with hs.Handyscope(gen_freq, 0.1, sample_freq, record_length, 4, output_active_channels=0) as handyscope:
-        np_data = np.asarray(handyscope.get_record())
-        t = np.linspace(0, (record_length-1) / sample_freq, record_length)
+    with Connection.open_serial_port(com) as connection:
+        device_list = connection.detect_devices()
+        axis1 = device_list[1].get_axis(1)
+        axis2 = device_list[2].get_axis(1)
         
-        plt.plot(t * 1e6, np_data[0, :])
-        plt.xlabel("Time (us)")
-        plt.ylabel("Voltage (V)")
-        plt.show()
-        
-        t_data   = []
-        rms_data = []
-        start_time = time.time_ns()*10**-9
-        try:
-            while True:
-                # gen_freq = 13e6
-                # n_cycles = 10
-                # n_samples_per_cycle = 50
-                # sample_freq = int(gen_freq * n_samples_per_cycle)
-                # record_length = int(n_cycles * sample_freq / gen_freq) + 1
-                
-                # handyscope.new_params(input_frequency=gen_freq, output_sample_frequency=sample_freq, output_record_length=record_length)
-                np_data = np.asarray(handyscope.get_record())
-                t_data.append(time.time_ns()*10**-9 - start_time)
-                rms_val = np.sqrt(np.mean(np_data[0, :]**2))
-                print(rms_val)
-                rms_data.append(rms_val)
-                
-                plt.plot(t * 1e6, np_data[0, :])
-                plt.xlabel("Time (us)")
-                plt.ylabel("Voltage (V)")
-                plt.show()
-        except KeyboardInterrupt:
-            plt.plot(t_data, rms_data)
-            raise KeyboardInterrupt
+        with hs.Handyscope(gen_freq, 0.1, sample_freq, record_length, 1, output_resolution=12, output_active_channels=0) as handyscope:#, output_active_channels=0
+            print(handyscope)
+            np_data = np.asarray(handyscope.get_record())
+            t = np.linspace(0, (handyscope.scp.record_length-1) / handyscope.scp.sample_frequency, int(handyscope.scp.record_length))
+            
+            plt.plot(t * 1e6, np_data[0, :])
+            plt.xlabel("Time (us)")
+            plt.ylabel("Voltage (V)")
+            plt.show()
+            
+            traj.move_abs_v(axis1, 51)
+            traj.move_abs_v(axis2, 140)
+            traj.move_abs_v(axis2, 75, velocity=1, wait_until_idle=False)  
+            
+            t_data   = []
+            rms_data = []
+            start_time = time.time_ns()*10**-9
+            try:
+                while True:
+                    # gen_freq = 13e6
+                    # n_cycles = 10
+                    # n_samples_per_cycle = 50
+                    # sample_freq = int(gen_freq * n_samples_per_cycle)
+                    # record_length = int(n_cycles * sample_freq / gen_freq) + 1
+                    
+                    # handyscope.new_params(input_frequency=gen_freq, output_sample_frequency=sample_freq, output_record_length=record_length)
+                    np_data = np.asarray(handyscope.get_record())
+                    t_data.append(time.time_ns()*10**-9 - start_time)
+                    rms_val = h.rms(np_data[0, :])
+                    print(rms_val)
+                    rms_data.append(rms_val)
+                    
+                    plt.plot(t_data * 1e6, rms_data)
+                    plt.xlabel("Time (us)")
+                    plt.ylabel("RMS Voltage (V)")
+                    plt.show()
+                    # break
+            except KeyboardInterrupt:
+                plt.plot(t_data, rms_data)
+                raise KeyboardInterrupt
