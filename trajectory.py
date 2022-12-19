@@ -3,28 +3,120 @@
 Created on Thu Dec  8 15:42:02 2022
 
 @author: mc16535
+
+A file containing Stage class which wraps around zaber_motion containing axis1 
+(y) and axis2 (x), assuming firmware v6. Also contains some helper functions.
 """
 import helpers as h
 import numpy as np
 from zaber_motion import Units
+from zaber_motion.ascii import Connection
 
-def move_abs_v(axis, distance, length_units=Units.LENGTH_MILLIMETRES, wait_until_idle=True, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND):
-    """
-    Mimics the v7 firmware version of axis.move_absolute() for which velocity
-    can be specified. Overwrites the max speed of the axis to do this, and does
-    not undo it afterwards.
-    """
-    axis.settings.set("maxspeed", velocity, velocity_units)
-    axis.move_absolute(distance, length_units, wait_until_idle=wait_until_idle)
+class Stage:
+    __slots__ = ("connection", "axis1", "axis2", "mm_resolution")
     
-def move_rel_v(axis, distance, length_units=Units.LENGTH_MILLIMETRES, wait_until_idle=True, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND):
-    """
-    Mimics the v7 firmware version of axis.move_relative() for which velocity
-    can be specified. Overwrites the max speed of the axis to do this, and does
-    not undo it afterwards.
-    """
-    axis.settings.set("maxspeed", velocity, velocity_units)
-    axis.move_relative(distance, length_units, wait_until_idle=wait_until_idle)
+    def __init__(self, port=None):
+        if port is None:
+            port = h.get_port()
+        self.connection = Connection.open_serial_port(port)
+        device_list = self.connection.detect_devices()
+        
+        self.axis1 = device_list[1].get_axis(1)
+        self.axis2 = device_list[2].get_axis(1)
+        
+        self.mm_resolution = 1e-4
+    
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.connection.close()
+    
+    def __str__(self):
+        s  = "Zaber motion stage\n"
+        s += "\tAxis1:\n"
+        s += "\t\tPosition: {:9.6f}mm\n".format(self.axis1.get_position())
+        s += "\tAxis2:\n"
+        s += "\t\tPosition: {:9.6f}mm\n".format(self.axis2.get_position())
+        return s
+    
+    def move_x(self, distance, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
+        """ Mimics the v7 firmware version of axis.move_absolute() for which
+        velocity can be specified. Overwrites the max speed of the axis to do
+        this, and does not undo it afterwards. """
+        axis2 = self.axis2
+        axis2.settings.set("maxspeed", velocity, velocity_units)
+        if mode == "abs":
+            axis2.move_absolute(distance, length_units, wait_until_idle=wait_until_idle)
+        elif mode == "rel":
+            axis2.move_relative(distance, length_units, wait_until_idle=wait_until_idle)
+        else:
+            raise NotImplementedError("Movement mode should be 'abs' or 'rel'.")
+        
+    def move_y(self, distance, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
+        """ Mimics the v7 firmware version of axis.move_absolute() for which
+        velocity can be specified. Overwrites the max speed of the axis to do
+        this, and does not undo it afterwards. """
+        axis1 = self.axis1
+        axis1.settings.set("maxspeed", velocity, velocity_units)
+        if mode == "abs":
+            axis1.move_absolute(distance, length_units, wait_until_idle=wait_until_idle)
+        elif mode == "rel":
+            axis1.move_relative(distance, length_units, wait_until_idle=wait_until_idle)
+        else:
+            raise NotImplementedError("Movement mode should be 'abs' or 'rel'.")
+            
+    def move_abs(self, coords, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=True):
+        """ Move the stage to a set of coordinates (x, y) from the current
+        position. Velocity is assumed to the the total speed of the stage in
+        both x- and y-directions (i.e. velocity=sqrt(v_x^2 + v_y^2) )."""
+        coords = np.squeeze(coords)
+        if coords.shape != (2,):
+            raise TypeError("Stage.move_abs(): coordinates must be supplied as two floats.")
+        
+        # Convert velocity into displacement units.
+        if velocity_units != h.velocity_units(length_units):
+            native_value = self.axis1.settings.convert_to_native_units("vel", velocity, velocity_units)
+            velocity = self.axis1.settings.convert_from_native_units("vel", native_value, h.velocity_units(length_units))
+            velocity_units = h.velocity_units(length_units)
+        
+        # Compute the components of velocity in x- and y-directions.
+        old_coords = np.asarray([self.axis2.get_position(), self.axis1.get_position()])
+        relative_disp = np.abs(coords - old_coords) # Component-wise distance
+        relative_dist = np.sqrt(relative_disp[0]**2 + relative_disp[1]**2) # Hypotenuse
+        vx = velocity * relative_disp[0] / relative_dist
+        vy = velocity * relative_disp[1] / relative_dist
+        
+        # Move the stage
+        self.move_x(coords[0], length_units=length_units, velocity=vx, velocity_units=velocity_units, mode="abs", wait_until_idle=False)
+        self.move_y(coords[1], length_units=length_units, velocity=vy, velocity_units=velocity_units, mode="abs", wait_until_idle=wait_until_idle)
+        if wait_until_idle:
+            while abs(coords[0] - self.axis2.get_position(Units.LENGTH_MILLIMETRES)) > self.mm_resolution or abs(coords[1] - self.axis1.get_position(Units.LENGTH_MILLIMETRES)) > self.mm_resolution:
+                pass
+        
+    def move_rel(self, coords, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=True):
+        """ Move the stage by a distance given by coordinates (x, y) from the
+        current position. Velocity is assumed to the the total speed of the stage
+        in both x- and y-directions (i.e. velocity=sqrt(v_x^2 + v_y^2) )."""
+        coords = np.squeeze(coords)
+        if coords.shape != (2,):
+            raise TypeError("Stage.move_abs(): coordinates must be supplied as two floats.")
+        
+        # Convert velocity into displacement units.
+        if velocity_units != h.velocity_units(length_units):
+            native_value = self.axis1.settings.convert_to_native_units("vel", velocity, velocity_units)
+            velocity = self.axis1.settings.convert_from_native_units("vel", native_value, h.velocity_units(length_units))
+            velocity_units = h.velocity_units(length_units)
+        
+        # Compute the components of velocity in x- and y-directions.
+        relative_disp = np.abs(coords) # Component-wise distance
+        relative_dist = np.sqrt(relative_disp[0]**2 + relative_disp[1]**2) # Hypotenuse
+        vx = velocity * relative_disp[0] / relative_dist
+        vy = velocity * relative_disp[1] / relative_dist
+        
+        # Move the stage
+        self.move_x(coords[0], length_units=length_units, velocity=vx, velocity_units=velocity_units, mode="rel", wait_until_idle=False)
+        self.move_y(coords[1], length_units=length_units, velocity=vy, velocity_units=velocity_units, mode="rel", wait_until_idle=wait_until_idle)
 
 def circle_polygonal(axis1, axis2, C, r, N, T, length_units=Units.LENGTH_MILLIMETRES):
     """

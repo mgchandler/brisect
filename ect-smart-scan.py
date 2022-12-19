@@ -16,6 +16,7 @@ import helpers as h
 import libtiepie as ltp
 import matplotlib.pyplot as plt
 import numpy as np
+import scan as sc
 import sys
 import time
 import trajectory as traj
@@ -39,48 +40,51 @@ if __name__ == "__main__":
     # ltp.network.auto_detect_enabled = True
     ltp.device_list.update()
     
-    gen_freq = 13.5e6
-    sample_freq = 5e8
-    record_length = 50000
+    # gen_freq = 13.5e6
+    # sample_freq = 5e8
+    # record_length = 50000
     
     target = 75
     
-    with Connection.open_serial_port(com) as connection:
-        device_list = connection.detect_devices()
-        axis1 = device_list[1].get_axis(1)
-        axis2 = device_list[2].get_axis(1)
-        
-        with hs.Handyscope(gen_freq, 0.1, sample_freq, record_length, 1, output_resolution=12, output_active_channels=0) as handyscope:#, output_active_channels=0
+    settings = h.read_settings("test_scan.yml")
+    gen_freq      = float(settings["generator"]["signal"]["frequency"])
+    amplitude     = float(settings["generator"]["amplitude"])
+    sample_freq   = float(settings["oscilloscope"]["frequency"])
+    record_length = int(settings["oscilloscope"]["record_length"])
+    
+    with traj.Stage() as stage:
+        with hs.Handyscope(gen_freq, amplitude, sample_freq, record_length, 1, output_active_channels=0) as handyscope:#, output_active_channels=0
             print(handyscope)
             np_data = np.asarray(handyscope.get_record())
             t = np.linspace(0, (handyscope.scp.record_length-1) / handyscope.scp.sample_frequency, int(handyscope.scp.record_length))
             
-            traj.move_abs_v(axis1, 51)
-            traj.move_abs_v(axis2, 140)
-            traj.move_abs_v(axis2, target, velocity=2, wait_until_idle=False)  
+            stage.move_abs([settings["trajectory"]["init_x"], settings["trajectory"]["init_y"]], velocity=10, wait_until_idle=True)
             
-            t_data   = []
-            d_data   = []
-            rms_data = []
-            start_time = time.time_ns()*10**-9
-            try:
-                while abs(target - axis2.get_position(Units.LENGTH_MILLIMETRES)) > 1e-5:
-                    np_data = np.asarray(handyscope.get_record())
-                    t_data.append(time.time_ns()*10**-9 - start_time)
-                    d_data.append(axis2.get_position(Units.LENGTH_MILLIMETRES))
-                    rms_val = h.rms(np_data[0, :])
-                    rms_data.append(rms_val)
-                    
-                    plt.plot(d_data, rms_data)
-                    plt.xlabel("Position (mm)")
-                    plt.ylabel("RMS Voltage (V)")
-                    plt.title("Gen Freq {:.3f}MHz - Amp {:.3f}V".format(handyscope.gen.frequency*10**-6, handyscope.gen.amplitude))
-                    plt.show()
-            except KeyboardInterrupt:
-                plt.figure()
-                plt.plot(d_data, rms_data)
-                plt.xlabel("Position (mm)")
-                plt.ylabel("RMS Voltage (V)")
-                plt.title("Gen Freq {:.3f}MHz - Amp {:.3f}V".format(handyscope.gen.frequency*10**-6, handyscope.gen.amplitude))
-                plt.show()
-                raise KeyboardInterrupt
+            all_x, all_y, all_rms = [], [], []
+            for idx, (x, y, v) in enumerate(zip(settings["trajectory"]["x"], settings["trajectory"]["y"], settings["trajectory"]["v"])):
+                x_data, y_data, rms_data = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v)
+                all_x.append(x_data)
+                all_y.append(y_data)
+                all_rms.append(rms_data)
+            
+            all_x_new = all_x[0]
+            all_y_new = all_y[0]
+            all_rms_new = all_rms[0]
+            for i in range(len(all_rms)-1):
+                all_x_new = np.append(all_x_new, all_x[i+1])
+                all_y_new = np.append(all_y_new, all_y[i+1])
+                all_rms_new = np.append(all_rms_new, all_rms[i+1])
+            fig = plt.figure(figsize=(8,6), dpi=100)
+            ax = fig.add_subplot(projection='3d')
+            ax.scatter(all_x_new, all_y_new, all_rms_new)
+            ax.set_xlabel("x (mm)")
+            ax.set_ylabel("y (mm)")
+            ax.set_zlabel("RMS Voltage (V)")
+            plt.show()
+            plt.figure(figsize=(8,6), dpi=100)
+            plt.scatter(all_x_new, all_y_new, c=all_rms_new)
+            plt.xlabel("x (mm)")
+            plt.ylabel("y (mm)")
+            plt.colorbar(label="RMS Voltage (V)")
+            plt.show()
+            # ax.set_zlim(0.7, .8)

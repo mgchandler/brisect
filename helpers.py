@@ -5,13 +5,14 @@ Created on Thu Dec  8 15:30:00 2022
 @author: mc16535
 
 A file containing helper functions for ect-smart-scan, which do not belong in
-any other file.
+any other file. Should consist of short, easily read functions, rather than
+anything too much more extensive.
 """
-import handyscope as hs
 import libtiepie as ltp
 import numpy as np
 from serial.tools.list_ports import comports
 from zaber_motion import Units
+import yaml
 
 def get_port(manufacturer="FTDI"):
     """
@@ -45,6 +46,12 @@ def velocity_units(length_units):
     else:
         raise TypeError("Length units are invalid")
 
+# def convert_units(value, unit1, unit2):
+#     """
+#     Convert the value given in unit1 into its equivalent result in unit2.
+#     """
+#     if unit1 == Units.
+
 def find_gen(device_list):
     """
     Returns the index of the item in device_list which corresponds to a
@@ -76,3 +83,8 @@ def rms(x):
     Compute the root-mean-square of a numpy vector.
     """
     return np.sqrt(np.mean(np.asarray(x)**2))
+
+def read_settings(filename):
+    with open(filename, 'r') as file:
+        settings = yaml.safe_load(file)
+    return settings
