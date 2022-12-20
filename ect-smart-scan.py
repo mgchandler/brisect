@@ -30,6 +30,7 @@ if __name__ == "__main__":
         if len(sys.argv) > 2:
             raise TypeError("ect-smart-scan: too many arguments.")
         yaml_filename = sys.argv[1]
+    # Typically called when running in IDE, or if no arg given from cmd.
     else:
         yaml_filename = "test_scan.yml"
     
@@ -40,9 +41,6 @@ if __name__ == "__main__":
         pass #TODO: Demand local storage of device database
         
     settings = h.read_settings(yaml_filename)
-    
-    #TODO: Test that this works when moved into hs.Handyscope class
-    # ltp.device_list.update()
     
     with traj.Stage() as stage:
         with hs.Handyscope.from_yaml(yaml_filename) as handyscope:
