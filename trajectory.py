@@ -117,7 +117,7 @@ class Stage:
             x_pos, y_pos = self.axis2.get_position(Units.LENGTH_MILLIMETRES), self.axis1.get_position(Units.LENGTH_MILLIMETRES)
             #TODO: Maybe do this using velocity?
             while abs(coords[0] - x_pos) > self.mm_resolution or abs(coords[1] - y_pos) > self.mm_resolution:
-                if last == np.sqrt((coords[0] - x_pos)**2 + (coords[1] - y_pos)**2):
+                if last == np.sqrt((coords[0] - x_pos)**2 + (coords[1] - y_pos)**2) and last < self.mm_resolution:
                     break
                 x_pos, y_pos = self.axis2.get_position(Units.LENGTH_MILLIMETRES), self.axis1.get_position(Units.LENGTH_MILLIMETRES)
                 last = np.sqrt((coords[0] - x_pos)**2 + (coords[1] - y_pos)**2)
@@ -141,46 +141,46 @@ class Stage:
             self.move([np.real(circle_r[i]), np.imag(circle_r[i])], length_units=length_units, velocity=v0, velocity_units=vel_units)
 
 
-def circle_polygonal(axis1, axis2, C, r, N, T, length_units=Units.LENGTH_MILLIMETRES):
-    """
-    Trace out a circle with two perpendicular axes. Approximates the circle
-    with an N-sided polygon. Currently has stop-start behaviour between each
-    segment.
+# def circle_polygonal(axis1, axis2, C, r, N, T, length_units=Units.LENGTH_MILLIMETRES):
+#     """
+#     Trace out a circle with two perpendicular axes. Approximates the circle
+#     with an N-sided polygon. Currently has stop-start behaviour between each
+#     segment.
 
-    Parameters
-    ----------
-    axis1 : TYPE
-        DESCRIPTION.
-    axis2 : TYPE
-        DESCRIPTION.
-    C : list, array
-        Centre position of the circle with units in dist_units.
-    r : float
-        Radius of the circle with units in dist_units.
-    N : int
-        Number of lines to discretise the circle into.
-    T : float
-        Desired total time taken in seconds. Note no checks made to ensure that
-        resulting velocity is physical - this is left to the user.
-    dist_units : Units, optional
-        Units of distance used. The default is Units.LENGTH_MILLIMETRES.
-    """
-    v0 = 2*np.pi*r / T
-    circle_r = np.round(r *np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1] * 1j, 6)
-    circle_v = np.round(v0*np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1], 6)
+#     Parameters
+#     ----------
+#     axis1 : TYPE
+#         DESCRIPTION.
+#     axis2 : TYPE
+#         DESCRIPTION.
+#     C : list, array
+#         Centre position of the circle with units in dist_units.
+#     r : float
+#         Radius of the circle with units in dist_units.
+#     N : int
+#         Number of lines to discretise the circle into.
+#     T : float
+#         Desired total time taken in seconds. Note no checks made to ensure that
+#         resulting velocity is physical - this is left to the user.
+#     dist_units : Units, optional
+#         Units of distance used. The default is Units.LENGTH_MILLIMETRES.
+#     """
+#     v0 = 2*np.pi*r / T
+#     circle_r = np.round(r *np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1] * 1j, 6)
+#     circle_v = np.round(v0*np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1], 6)
     
-    vel_units = h.velocity_units(length_units)
+#     vel_units = h.velocity_units(length_units)
     
-    axis1.move_absolute(C[1], length_units)
-    axis2.move_absolute(C[0]+r, length_units)
-    for ii in range(N):
-        # If axis1 doesn't move
-        if np.abs(np.real(circle_v[ii])) == 0:
-            move_abs_v(axis2, C[0]+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])), velocity_units=vel_units)
-        # If axis2 doesn't move
-        elif np.abs(np.imag(circle_v[ii])) == 0:
-            move_abs_v(axis1, C[1]+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), velocity_units=vel_units)
-        # Then both must move
-        else:
-            move_abs_v(axis1, C[1]+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), velocity_units=vel_units, wait_until_idle=False)
-            move_abs_v(axis2, C[0]+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])), velocity_units=vel_units)
+#     axis1.move_absolute(C[1], length_units)
+#     axis2.move_absolute(C[0]+r, length_units)
+#     for ii in range(N):
+#         # If axis1 doesn't move
+#         if np.abs(np.real(circle_v[ii])) == 0:
+#             move_abs_v(axis2, C[0]+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])), velocity_units=vel_units)
+#         # If axis2 doesn't move
+#         elif np.abs(np.imag(circle_v[ii])) == 0:
+#             move_abs_v(axis1, C[1]+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), velocity_units=vel_units)
+#         # Then both must move
+#         else:
+#             move_abs_v(axis1, C[1]+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), velocity_units=vel_units, wait_until_idle=False)
+#             move_abs_v(axis2, C[0]+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])), velocity_units=vel_units)

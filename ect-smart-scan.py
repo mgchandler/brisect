@@ -11,6 +11,7 @@ working out which port the device is connected to.
 N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 2 is the x-axis.
 """
+import csv
 import handyscope as hs
 import helpers as h
 import libtiepie as ltp
@@ -45,30 +46,42 @@ if __name__ == "__main__":
     
     with traj.Stage() as stage:
         with hs.Handyscope.from_yaml(yaml_filename) as handyscope:
-            # print(handyscope)
+            print(handyscope)
             
             # Initialise stage position
-            stage.move_abs([settings["trajectory"]["init_x"], settings["trajectory"]["init_y"]], velocity=10, wait_until_idle=True)
+            stage.move([settings["trajectory"]["init_x"], settings["trajectory"]["init_y"]], velocity=10, mode="abs", wait_until_idle=True)
             
-            x_list = settings["trajectory"]["x"]
-            y_list = settings["trajectory"]["y"]
-            v_list = settings["trajectory"]["v"]
+            x_list = [settings["trajectory"]["coords"][i][0] for i in range(len(settings["trajectory"]["coords"]))]
+            y_list = [settings["trajectory"]["coords"][i][1] for i in range(len(settings["trajectory"]["coords"]))]
+            # If speed is a single value, replicate it to the same size as x_list and y_list.
+            if isinstance(settings["trajectory"]["v"], float):
+                v_list = [settings["trajectory"]["v"] for i in range(len(x_list))]
+            # If speed is a list of values, check how long it is.
+            elif isinstance(settings["trajectory"]["v"], list):
+                # If list of speeds is too small, cycle through it until we have the right length.
+                if len(settings["trajectory"]["v"]) < len(x_list):
+                    v_list = [settings["trajectory"]["v"][i%len(settings["trajectory"]["v"])] for i in range(len(x_list))]
+                # If list of speeds too large, only take up to the right length.
+                else:
+                    v_list = settings["trajectory"]["v"][:len(x_list)]
+            # We must have an invalid data type.
+            else:
+                raise TypeError("Velocity should be a list of floats or a float.")
+            
+            # Initialise storage arrays
             x_data   = np.empty(0)
             y_data   = np.empty(0)
             rms_data = np.empty(0)
-            for x, y, v in zip(x_list, y_list, v_list):
-                x_scan, y_scan, rms_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v)
+            t1 = time.time_ns() * 1e-9
+            for idx, (x, y, v) in enumerate(zip(x_list, y_list, v_list)):
+                if idx == 0:
+                    x_scan, y_scan, rms_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v, live_plot=True)
+                else:
+                    x_scan, y_scan, rms_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v, live_plot=True, old_val=rms_data)
                 x_data   = np.append(x_data, x_scan)
                 y_data   = np.append(y_data, y_scan)
                 rms_data = np.append(rms_data, rms_scan)
+            t2 = time.time_ns() * 1e-9
+            print("Total scan time: {:.2f}s".format(t2-t1))
             
-            # Plot in 3D
-            fig = plt.figure(figsize=(8,6), dpi=100)
-            ax = fig.add_subplot(projection='3d')
-            graph = ax.scatter(x_data, y_data, rms_data, c=rms_data)
-            ax.set_xlabel("x (mm)")
-            ax.set_ylabel("y (mm)")
-            ax.set_zlabel("RMS Voltage (V)")
-            fig.colorbar(graph)
-            plt.savefig(r"output\{} 3D.png".format(settings["job"]["name"]))
-            plt.show()
+            h.save_data(r"output\{}".format(settings["job"]["name"]), x_data, y_data, rms_data)

@@ -8,7 +8,7 @@ A file containing wrappers for libtiepie's Generator and Oscilloscope classes.
 Enables single-command usage with the handyscope, for which both generator and
 oscilloscope are contained within one object.
 """
-from helpers import find_gen, find_scp
+from helpers import find_gen, find_scp, read_settings
 import libtiepie as ltp
 import numpy as np
 import time
@@ -25,7 +25,7 @@ scp_dict  = {'output_sample_frequency':'sample_frequency',
 mode_dict = {'ST_SINE':ltp.ST_SINE,
              'ST_ARBITRARY':ltp.ST_ARBITRARY,
              'MM_BLOCK':ltp.MM_BLOCK,
-             'CK_ATV':ltp.CK_ACV,
+             'CK_ACV':ltp.CK_ACV,
              'CK_OHM':ltp.CK_OHM}
         
 class Handyscope:
@@ -61,13 +61,12 @@ class Handyscope:
         self.scp.resolution       = output_resolution
         self.scp.record_length    = int(output_record_length)
     
-    @class_method
+    @classmethod
     def from_yaml(cls, filename):
-        with open(filename, 'r') as file:
-            settings = yaml.safe_load(file)
+        settings = read_settings(filename)
         return cls(
             settings["generator"]["signal"]["frequency"],
-            settings["generator"]["amplitude"],
+            settings["generator"]["signal"]["amplitude"],
             settings["oscilloscope"]["frequency"],
             settings["oscilloscope"]["record_length"],
             settings["oscilloscope"]["range"],
