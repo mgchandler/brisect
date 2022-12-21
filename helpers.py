@@ -99,7 +99,7 @@ def read_settings(filename):
         },
         # # All generator parameters are required.
         # "generator":{
-            
+        # 
         # },
         "oscilloscope":{
             # Loose requirement: method of data acquisition.
@@ -144,34 +144,60 @@ def dict_merge(dict1, dict2):
         else:
             dict1[k] = dict2[k]
 
-def save_data(filename, xdata, ydata, zdata, xunits="mm", yunits="mm", zlabel="RMS Voltage (V)"):
+def save_csv(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (V)", zaxis=None, ignore_long_z_warning=False):
     """
-    Saves a figure and csv of data.
+    Saves a csv of data.
     """
-    xdata, ydata, zdata = np.asarray(xdata), np.asarray(ydata), np.asarray(zdata)
-    if xdata.shape != ydata.shape and ydata.shape != zdata.shape:
-        raise ValueError("x, y and z should all have the same shape.")
+    x, y, z = np.squeeze(x), np.squeeze(y), np.squeeze(z).reshape(z.shape[0], -1)
+    zlabel = np.asarray(zlabel)
+    # Only check 0th dim of z as it may be 2D.
+    if x.shape != y.shape and y.shape[0] != z.shape[0]:
+        raise ValueError("x, y and z should all have broadcastable shapes.")
+    
+    if z.shape[1] != 1:
+        if z.shape[1] != zaxis.shape[0]:
+            raise ValueError("1st dim of z and zaxis must have the same shape.")
+        if z.shape[1] > 10 and not ignore_long_z_warning:
+            raise ValueError("zaxis is too large. If you meant to save more than 10, set ignore_long_z_warning=True")
+        zlabel = np.char.add(zlabel, zaxis.astype(str))
         
-    # Check if either of the files already exists
-    if os.path.isfile(f"{filename}.csv") or os.path.isfile(f"{filename}.png"):
+    # Check if the file already exists.
+    if os.path.isfile(f"{filename}.csv"):
         idx = 1
-        while os.path.isfile(f"{filename} ({idx}).csv") or os.path.isfile(f"{filename} ({idx}).png"):
+        while os.path.isfile(f"{filename} ({idx}).csv"):
             idx += 1
         filename += f" ({idx})"
-        
-    # Write csv
+    
+    print(f"Saving {filename}.csv ...")
     with open(f"{filename}.csv", 'w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(["x", "y", "z"])
-        for x, y, z in zip(xdata, ydata, zdata):
-            csvwriter.writerow([x, y, z])
+        csvwriter.writerow([f"x ({xunits})", f"y ({yunits})"] + ["{}".format(label) for label in zlabel])
+        for idx in range(x.shape[0]):
+            csvwriter.writerow([x[idx], y[idx]] + list(z[idx, :]))
             
+def plot_data(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (V)"):
+    """
+    Saves a single figure.
+    """
+    x, y, z = np.squeeze(x), np.squeeze(y), np.squeeze(z)
+    zlabel = np.asarray(zlabel)
+    # z must have the same shape - call plot_data() multiple times if multiple z's required.
+    if x.shape != y.shape and y.shape != z.shape:
+        raise ValueError("x, y and z should all have broadcastable shapes.")
+        
+    # Check if the file already exists.
+    if os.path.isfile(f"{filename}.png"):
+        idx = 1
+        while os.path.isfile(f"{filename} ({idx}).png"):
+            idx += 1
+        filename += f" ({idx})"
+    
     # For plotting, if complex do absolute
-    if zdata.dtype == complex:
-        zdata = np.abs(zdata)
+    if z.dtype == complex:
+        z = np.abs(z)
     fig = plt.figure(figsize=(8,6), dpi=100)
     ax = fig.add_axes([0.1, 0.1, 0.6, 0.8], projection='3d')
-    graph = ax.scatter(xdata, ydata, zdata, c=zdata)
+    graph = ax.scatter(x, y, z, c=z)
     ax.set_xlabel(f"x ({xunits})")
     ax.set_ylabel(f"y ({yunits})")
     ax.set_zlabel(zlabel)

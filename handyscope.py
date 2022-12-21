@@ -8,6 +8,7 @@ A file containing wrappers for libtiepie's Generator and Oscilloscope classes.
 Enables single-command usage with the handyscope, for which both generator and
 oscilloscope are contained within one object.
 """
+import array
 from helpers import find_gen, find_scp, read_settings
 import libtiepie as ltp
 import numpy as np
@@ -39,11 +40,8 @@ class Handyscope:
         self.gen = ltp.device_list.get_item_by_index(find_gen(ltp.device_list)).open_generator()
         self.scp = ltp.device_list.get_item_by_index(find_scp(ltp.device_list)).open_oscilloscope()
         
-        self.gen.signal_type = input_signal_type
-        self.gen.frequency   = input_frequency
-        self.gen.amplitude   = input_amplitude
-        self.gen.offset      = input_offset
-        self.gen.output_on   = True
+        #%% Initialise oscilloscope. We'll probably need sample_frequency for 
+        # everything, so start with the scope.
         
         # Do all the channel stuff first, to ensure that sample_frequency is 
         # what we want it to be later.
@@ -60,6 +58,36 @@ class Handyscope:
         self.scp.measure_mode     = output_measure_mode
         self.scp.resolution       = output_resolution
         self.scp.record_length    = int(output_record_length)
+        
+        #%% Initialise generator.
+        self.gen.signal_type = input_signal_type
+        
+        if input_signal_type == ltp.ST_SINE:
+            if not isinstance(input_frequency, float):
+                raise TypeError("Input frequency must be a float for sine signal generation")
+            self.gen.frequency = input_frequency
+            
+        elif input_signal_type == ltp.ST_ARBITRARY:
+            if not isinstance(input_frequency, list):
+                raise TypeError("Input frequency must be a list of floats for arbitrary signal generation")
+            if len(input_amplitude) != len(input_frequency):
+                if len(input_amplitude) < len(input_frequency):
+                    input_amplitude = [input_amplitude[i%len(input_amplitude)] for i in range(len(input_frequency))]
+                else:
+                    input_amplitude = input_amplitude[:len(input_frequency)]
+                    
+            self.gen.frequency_mode = ltp.FM_SAMPLEFREQUENCY
+            self.gen.frequency = self.scp.sample_frequency
+            pts = np.linspace(0, (self.scp.record_length-1)/self.gen.frequency, self.scp.record_length)
+            sig = np.zeros(self.scp.record_length)
+            for amp, freq in zip(input_amplitude, input_frequency):
+                sig += amp * np.sin(2*np.pi*freq * pts)
+            self.gen.set_data(array.array('f', sig))
+        else:
+            raise NotImplementedError("Currently only sine and arbitrary signals are supported.")
+        self.gen.amplitude   = np.max(input_amplitude)
+        self.gen.offset      = input_offset
+        self.gen.output_on   = True
     
     @classmethod
     def from_yaml(cls, filename):

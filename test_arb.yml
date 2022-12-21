@@ -1,7 +1,7 @@
 job:
   # <str> REQUIRED Name of the scan. Should contain no spaces or special
   # characters.
-  name: CoarseScan
+  name: CoarseScanMultiFreq
 
 
 
@@ -15,14 +15,23 @@ material:
 generator:
   signal:
     # <str> REQUIRED Signal type. Currently supports: ST_SINE
-    type: ST_SINE
+    type: ST_ARBITRARY
     
-    # <float> ST_SINE REQUIRED Frequency of sinusoidal input signal (Hz). Only
-    # required for ST_SINE type.
-    frequency: 13.0e+6
+    # <float> ST_SINE REQUIRED Frequency of sinusoidal input signal (Hz).
+    # <float list> ST_ARBITRARY REQUIRED Frequencies of input signals (Hz).
+    frequency: 
+     - 11.0e+6
+     - 12.0e+6
+     - 13.0e+6
     
-    # <float> REQUIRED Amplitude (V).
-    amplitude: .1
+    # <float> ST_SINE REQUIRED Amplitude (V).
+    # <float / float list> ST_ARBITRARY REQUIRED Amplitude (V). If a single
+    # float is given, it will be used for all frequencies, else the program
+    # will cycle through the list.
+    amplitude:
+     - .1
+     - .1
+     - .1
 
   # <float> REQUIRED DC Offset (V).
   offset: 0
@@ -87,4 +96,10 @@ trajectory:
   # float given, this will be used as the velocity for every step. If a list
   # given, the program cycles through the list. No checks made as to the length
   # of this list and coords.
-  v: 2.
+  v:
+   - 2.
+   - 3.
+  
+  # <str> REQUIRED The type of analysis to be performed. Currently only "RMS"
+  # "spec" supported. 
+  analysis: spec

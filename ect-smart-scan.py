@@ -32,7 +32,7 @@ if __name__ == "__main__":
         yaml_filename = sys.argv[1]
     # Typically called when running in IDE, or if no arg given from cmd.
     else:
-        yaml_filename = "test_scan.yml"
+        yaml_filename = "test_sine.yml"
     
     # Update devices from internet
     try:
@@ -42,6 +42,7 @@ if __name__ == "__main__":
         
     settings = h.read_settings(yaml_filename)
     
+    #%% Start the scan
     with traj.Stage() as stage:
         with hs.Handyscope.from_yaml(yaml_filename) as handyscope:
             print(handyscope)
@@ -49,6 +50,7 @@ if __name__ == "__main__":
             # Initialise stage position
             stage.move([settings["trajectory"]["init_x"], settings["trajectory"]["init_y"]], velocity=10, mode="abs", wait_until_idle=True)
             
+            # Get trajectory set up.
             x_list = [settings["trajectory"]["coords"][i][0] for i in range(len(settings["trajectory"]["coords"]))]
             y_list = [settings["trajectory"]["coords"][i][1] for i in range(len(settings["trajectory"]["coords"]))]
             # If speed is a single value, replicate it to the same size as x_list and y_list.
@@ -66,20 +68,42 @@ if __name__ == "__main__":
             else:
                 raise TypeError("Velocity should be a list of floats or a float.")
             
-            # Initialise storage arrays
-            x_data   = np.empty(0)
-            y_data   = np.empty(0)
-            rms_data = np.empty(0)
+            # Initialise output array so that if live plotting requested, there is an initial value for RMS.
+            out_data = None
             t1 = time.time_ns() * 1e-9
+            #%% Actually perform the scan
             for idx, (x, y, v) in enumerate(zip(x_list, y_list, v_list)):
-                if idx == 0:
-                    x_scan, y_scan, rms_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v, live_plot=True)
+                # Work out what kind of analysis we want, and call the right one.
+                if settings["trajectory"]["analysis"].lower() == "rms":
+                    x_scan, y_scan, out_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v)#, live_plot=True, old_val=out_data)
+                elif settings["trajectory"]["analysis"].lower() == "spec":
+                    x_scan, y_scan, out_scan = sc.linear_scan_spec(handyscope, stage, [x, y], velocity=v)#, live_plot=True, freq_range=[8.5e6, 14e6])
                 else:
-                    x_scan, y_scan, rms_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v, live_plot=True, old_val=rms_data)
-                x_data   = np.append(x_data, x_scan)
-                y_data   = np.append(y_data, y_scan)
-                rms_data = np.append(rms_data, rms_scan)
+                    raise NotImplementedError("Analysis type must be 'RMS' or 'Spec'.")
+                # Initialise output arrays
+                if idx == 0:
+                    x_data = x_scan
+                    y_data = y_scan
+                    out_data = out_scan
+                # Append data
+                else:
+                    x_data   = np.append(x_data, x_scan)
+                    y_data   = np.append(y_data, y_scan)
+                    out_data = np.append(out_data, np.asarray(out_scan), axis=0)
             t2 = time.time_ns() * 1e-9
             print("Total scan time: {:.2f}s".format(t2-t1))
             
-            h.save_data(r"output\{}".format(settings["job"]["name"]), x_data, y_data, rms_data)
+            #%% Output the data: #TODO Check that this plotting still works. It should do, but idxs may need adjusting
+            if settings["trajectory"]["analysis"].lower() == "rms":
+                h.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
+                h.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
+                
+            elif settings["trajectory"]["analysis"].lower() == "spec":
+                freq = np.fft.rfftfreq(handyscope.scp.record_length, 1/handyscope.scp.sample_frequency)
+                export_data = np.empty((out_data.shape[0], len(settings["generator"]["signal"]["frequency"])), dtype=out_data.dtype)
+                # Only do the frequencies which we have multiplexed.
+                for idx, f in enumerate(settings["generator"]["signal"]["frequency"]):
+                    f_idx = np.argmin(np.abs(freq - f))
+                    export_data[:, idx] = out_data[:, f_idx]
+                    h.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, x_data, out_data[:, f_idx], zlabel="Frequency Spectrum at {:.1f}MHz".format(f*10**-6))
+                h.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, export_data, zlabel="spec ", zaxis=settings["generator"]["signal"]["frequency"])
