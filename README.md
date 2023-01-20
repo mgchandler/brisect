@@ -1,14 +1,14 @@
 # ECT Smart Scan
 
 A Python library for automated scanning of a metallic component using eddy current coil. 2D scanning using Zaber linear stages enabled using feedback from measurements made by a Handyscope.
-Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UNDT lab, with Handyscope HS5 making measurements.
+Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UNDT lab, with Handyscope HS5 making measurements, with drivers v8.1.9. Developed with Python v3.10.
 
 ## Setup
 
 To get started, a Python installation with `zaber-motion` and `python-libtiepie` packages is required. Suggested to set up a new environment using `mamba`:
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
-- Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan matplotlib numpy pyserial spyder yaml` 
-- Activate the environment: `mamba activate ect-smart-scan  
+- Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan matplotlib numpy pyserial scipy spyder yaml` 
+- Activate the environment: `mamba activate ect-smart-scan`  
 - Install the `zaber-motion` package: `python -m pip install zaber-motion`
 - Install the `libtiepie` package: `python -m pip install python-libtiepie`
 
@@ -28,6 +28,7 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 		- [x] `move_relative()` fns take velocity arguments in v7 - cannot update beyond v6.
 		- [x] Manually reproduce move_relative using `axis.settings.set("maxspeed", velocity)` for each axis and then do the movement.
 		- [ ] Look at streaming to reduce stop/start motion when making arcs.
+			- Arc behaviour not entirely required but would be nice down the line.
 		- [ ] Investigate triggers to adjust speed to make arcs.
 	- [x] Specify trajectory using external definition (e.g. `yaml` file?)
 	- [ ] Offline usage (function `zaber_motion.Library.enable_device_db_store()` updates from internet - need alternative behaviour when not available).
@@ -36,18 +37,22 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 		- Current `python-libtiepie` version does not work with most recent drivers - use v8.1.9
 	- [ ] Read in magnitude and phase data.
 		- [x] Read in data in real time as well!
-	- [ ] Process input data to meaningful form.
+	- [x] Pass in and measure arbitrary signals.
+		- Currently, multiplexed signals of N single frequencies with different amplitudes supported.
+		- Bands and chirps would be of interest in the future, but not currently implemented.
+	- [x] Process input data to meaningful form.
 - Feedback loop for detection:
 	- [ ] Determine geometry of the part being inspected.
 		- [x] Coarse scan of entire domain with zaber.
 		- [ ] In first instance, fit a box to metallic region.
 		- [ ] More clever prediction of geometry from resulting map.
-	- [ ] Coarse scan of part for defects.
-		- [ ] Similar scanning of part domain.
+	- [x] Coarse scan of part for defects.
 		- [ ] Look for deviations from pristine material.
 		- [ ] Identify a way to return to these regions for a more fine scan
 	- [ ] For phase: compare phase difference of input signal to output signal.
-		- [ ] Check how good our generated input signal is, vs channel measurement on handyscope
+		- [x] Check how good our generated input signal is, vs channel measurement on handyscope
+			- Signal looks very good, small amount of noise but not awful.  
+			  There is a phase difference from the generation depending on when generator started and stopped - will be necessary to measure the generated signal on the handyscope to compare to the output from the coil.
 - Miscellaneous:
 	- [x] Select a more appropriate capacitor.
 	- [x] Select a more appropriate frequency.
