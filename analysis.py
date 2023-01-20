@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-def fit_geometry_to_data(data, geom_profile="rect", init_params=None):
+def fit_geometry_to_data(data, geom_profile="rect", init_params="default"):
     """
     Attempts to work out the geometry of the sample measured in "data" by using
     scipy's curve_fit function. Note that each geometry must have its own
@@ -19,18 +19,40 @@ def fit_geometry_to_data(data, geom_profile="rect", init_params=None):
     
     data is assumed to be an ndarray with shape (N, 3) containing N 
     measurements, where the 0th col contains the x-coords, the 1st col contains
-    the y-coords and the 2nd col contains some data.
+    the y-coords and the 2nd col contains float data measured from the
+    handyscope.
+    
+    init_params can be one of three forms:
+        - None: 
+            do not use any initial parameters.
+        - "default":
+            use the default initial parameters specified in the geometry dict.
+        - list of params:
+            specify the initial parameters to use.
+            
     """
     geom_profile_dict = {
-        "rect" : lst_dist_from_rect,
+        "rect" : [lst_dist_from_rect, [80, 40, 50, 50, 0]],
     }
+    if init_params == "default":
+        init_params = geom_profile_dict[geom_profile][1] 
+    
+    # We expect the largest change in voltage to occur when the probe is moving
+    # from off the sample to on the geometry. Differentiate the measurements
+    # and filter based on that.
+    grad = np.abs(np.diff(data[:, 2]) / np.linalg.norm([np.diff(data[:, 0]), np.diff(data[:, 1])]))
+    #TODO: Need to choose a more appropriate threshold.
+    grad_threshold = np.nanmax(grad)/10
+    data = data[:-1, :]
+    data = data[grad > grad_threshold, :]
     
     params, cov_mat = curve_fit(
-        geom_profile_dict[geom_profile],
+        geom_profile_dict[geom_profile][0],
         data[:, :2].T,
         np.zeros(data.shape[0]),
         p0=init_params
     )
+    return params
 
 def dist_from_line(pt, start, end):
     """
@@ -133,9 +155,7 @@ if __name__ == "__main__":
     
     filename = r"C:\Users\mc16535\OneDrive - University of Bristol\Documents\Postgrad\Coding\ect-smart-scan\output\CoarseScanSingleFreq.csv"
     data = np.loadtxt(filename, skiprows=1, delimiter=',')
-    data = data[data[:, 2] > 0.75, :]
-    
-    params, _ = curve_fit(lst_dist_from_rect, data[:, :2].T, np.zeros(data.shape[0]), p0=[80, 40, 50, 50, 0])
+    params = fit_geometry_to_data(data)
     
     rotation_matrix = np.asarray([[np.cos(params[4]), np.sin(params[4])], [-np.sin(params[4]), np.cos(params[4])]])
     corner1 = [params[0], params[1]]
