@@ -44,11 +44,18 @@ def fit_geometry_to_data(data, geom_profile="rect", init_params="default"):
     #TODO: Need to choose a more appropriate threshold.
     grad_threshold = np.nanmax(grad)/10
     data = data[:-1, :]
-    data = data[grad > grad_threshold, :]
+    data_grad = data[grad > grad_threshold, :]
+    
+    data_fit = data[data[:, 2] > .8, :]
+    A = np.vstack([data_fit[:, 0], data_fit[:, 1], np.ones(data_fit.shape[0])]).T
+    a, b, c = np.linalg.lstsq(A, data_fit[:, 2], rcond=None)[0]
+    
+    data_corrected = data_fit
+    data_corrected[:, 2] = data_corrected[:, 2] / (a*data_fit[:, 0] + b*data_fit[:, 1] + c)
     
     params, cov_mat = curve_fit(
         geom_profile_dict[geom_profile][0],
-        data[:, :2].T,
+        data_grad[:, :2].T,
         np.zeros(data.shape[0]),
         p0=init_params
     )
@@ -150,10 +157,7 @@ def lst_dist_from_rect(pt, origin_x, origin_y, height, width, rotation):
 
 
 if __name__ == "__main__":
-    import csv
-    import os
-    
-    filename = r"C:\Users\mc16535\OneDrive - University of Bristol\Documents\Postgrad\Coding\ect-smart-scan\output\CoarseScanSingleFreq.csv"
+    filename = r".\output\CoarseScanSingleFreq.csv"
     data = np.loadtxt(filename, skiprows=1, delimiter=',')
     params = fit_geometry_to_data(data)
     

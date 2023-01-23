@@ -42,13 +42,16 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 		- Bands and chirps would be of interest in the future, but not currently implemented.
 	- [x] Process input data to meaningful form.
 - Feedback loop for detection:
-	- [ ] Determine geometry of the part being inspected.
+	- [x] Determine geometry of the part being inspected.
 		- [x] Coarse scan of entire domain with zaber.
-		- [ ] In first instance, fit a box to metallic region.
+		- [x] In first instance, fit a box to metallic region.
 		- [ ] More clever prediction of geometry from resulting map.
 	- [x] Coarse scan of part for defects.
 		- [ ] Look for deviations from pristine material.
 		- [ ] Identify a way to return to these regions for a more fine scan
+	- [x] For RMS voltage: correct for vertical liftoff of probe.
+		- [x] In first instance treat it as linear V = ax + by + can
+		- [ ] Reading to work out if there's any nonlinearity there.
 	- [ ] For phase: compare phase difference of input signal to output signal.
 		- [x] Check how good our generated input signal is, vs channel measurement on handyscope
 			- Signal looks very good, small amount of noise but not awful.  

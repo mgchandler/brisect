@@ -141,6 +141,30 @@ class Stage:
             self.move([np.real(circle_r[i]), np.imag(circle_r[i])], length_units=length_units, velocity=v0, velocity_units=vel_units)
 
 
+
+def square_coords(separation, *args):
+    """
+    Generate coordinates for sweeping across a predetermined square.
+    """
+    coords = np.zeros((0, 2))
+    params = args[0]
+    x, y = params[0], params[1]
+    
+    idx = 0
+    while y < params[1] + params[3]:
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        if idx%2 == 0:
+            x += params[2]
+        else:
+            x = params[0]
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        y += separation
+        
+        idx += 1
+    
+    return coords
+
+
 # def circle_polygonal(axis1, axis2, C, r, N, T, length_units=Units.LENGTH_MILLIMETRES):
 #     """
 #     Trace out a circle with two perpendicular axes. Approximates the circle
