@@ -11,8 +11,86 @@ import helpers as h
 import matplotlib.pyplot as plt
 import numpy as np
 import time
-# import trajectory as traj
+import trajectory as traj
 from zaber_motion import Units
+
+def grid_sweep_scan(handyscope, stage, origin, width, height, rotation, separation, length_units=Units.LENGTH_MILLIMETRES, velocity=1, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, live_plot=False):
+    """
+    Collect RMS data from handyscope while the stage sweeps out a grid. Grid is
+    defined by the origin (i.e. bottom-left corner), width and height in the x-
+    and y-axes, rotation of the rectangle about the origin, and passes in the
+    grid have some separation.
+    (N.B. the grid will have square `cells` apart from at the edges, which will
+     be squashed slightly. Tailor "separation" to minimise this effect.)
+
+    Parameters
+    ----------
+    handyscope : Handyscope obj
+        Handyscope object from module `handyscope`. Should already have been
+        initialised.
+    stage : Stage obj
+        Stage object from module `trajectory`. Should already have been
+        initialised.
+    origin : array-like (2,)
+        x- and y-coordinates of the origin of the grid. Assumed to be the
+        bottom-left corner of the grid.
+    width : float
+        Full width of the grid in the x-axis (i.e. before rotation).
+    height : float
+        Full height of the grid in the y-axis (before rotation).
+    rotation : float
+        Rotation of the grid (radians) about the origin.
+    separation : float
+        Distance which separates rows and columns. Each `cell` in the grid
+        should look square.
+    length_units : Length Units, optional
+        Units in which all distances are provided. The default is
+        Units.LENGTH_MILLIMETRES.
+    velocity : float, optional
+        Speed which will be used to perform the sweep. The default is 1.
+    velocity_units : Velocity Units, optional
+        Units which velocity is provided. The default is
+        Units.VELOCITY_MILLIMETRES_PER_SECOND.
+
+    Returns
+    -------
+    x_data : ndarray (N,)
+        x-coordinates of the scan contained in rms_data.
+    y_data : ndarray (N,)
+        y-coordinates of the scan contained in rms_data.
+    rms_data : ndarray (N,)
+        RMS voltage obtained from the scan around the grid.
+    """
+    origin = np.squeeze(origin)
+    if origin.shape != (2,):
+        raise ValueError("scan.grid_sweep_scan: origin must be 2D coordinates.")
+    # Determine coordinates of the grid
+    coords = traj.grid_sweep_coords(separation, origin[0], origin[1], width, height, rotation)
+    
+    # Initialise position. Will be absolute and we need it to wait until it arrives.
+    stage.move(coords[0, :], length_units=length_units, velocity=velocity, velocity_units=velocity_units)
+    # Start the scan.
+    rms_data = None
+    for idx, step in enumerate(coords):
+        # Do the scan
+        if live_plot:
+            x_scan, y_scan, rms_scan = linear_scan_rms(handyscope, stage, step, length_units=length_units, velocity=velocity, velocity_units=velocity_units, live_plot=live_plot, old_val=rms_data)
+        else:
+            x_scan, y_scan, rms_scan = linear_scan_rms(handyscope, stage, step, length_units=length_units, velocity=velocity, velocity_units=velocity_units)
+        
+        # Save the data.
+        if idx == 0:
+            #Initialise output arrays
+            x_data = x_scan
+            y_data = y_scan
+            rms_data = rms_scan
+        else:
+            # Append data
+            x_data   = np.append(x_data, x_scan)
+            y_data   = np.append(y_data, y_scan)
+            rms_data = np.append(rms_data, np.asarray(rms_scan), axis=0)
+    
+    return x_data, y_data, rms_data
 
 def linear_scan_rms(handyscope, stage, target, length_units=Units.LENGTH_MILLIMETRES, velocity=1, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, move_mode="abs", live_plot=False, old_val=None):
     """ 

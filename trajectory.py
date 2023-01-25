@@ -13,17 +13,19 @@ import time
 from zaber_motion import Units
 from zaber_motion.ascii import Connection
 
+eps = 1e-4
+
 class Stage:
     __slots__ = ("connection", "axis1", "axis2", "mm_resolution")
     
-    def __init__(self, port=None, initial_position=None, length_units=Units.LENGTH_MILLIMETRES):
+    def __init__(self, port=None, initial_position=None, length_units=Units.LENGTH_MILLIMETRES, mm_resolution=eps):
         if port is None:
             port = h.get_port()
         self.connection = Connection.open_serial_port(port)
         device_list = self.connection.detect_devices()
         
-        self.axis1 = device_list[1].get_axis(1)
-        self.axis2 = device_list[2].get_axis(1)
+        self.axis1 = device_list[1].get_axis(1) # SN39116
+        self.axis2 = device_list[0].get_axis(1) # SN39117
         
         if initial_position is not None:
             initial_position = np.squeeze(initial_position)
@@ -31,7 +33,7 @@ class Stage:
                 raise ValueError("Stage: initial_position should be a list of two coordinates")
             self.move_abs(initial_position, length_units=length_units)
         
-        self.mm_resolution = 1e-4
+        self.mm_resolution = eps
     
     def __enter__(self):
         return self
@@ -83,6 +85,28 @@ class Stage:
         the absolute axis coordinates, or relative to the current position.
         Velocity is taken to mean the total velocity that the stage moves in
         the x- and y-directions, i.e. velocity=sqrt(v_x^2 + v_y^2)
+        
+        Parameters
+        ----------
+        coords : ndarray (2,)
+            Coordinates to move the stage to.
+        length_units : Units, optional
+            Units in which coordinates are defined. The default is
+            Units.LENGTH_MILLIMETRES.
+        velocity : float, optional
+            Velocity at which the stage moves. No checks are made in this
+            method on it being too large. The default is 10.
+        velocity_units : Units, optional.
+            Units of velocity. The default is 
+            Units.VELOCITY_MILLIMETRES_PER_SECOND
+        mode : string, optional.
+            Method of movement. "abs" will move the stage to the exact
+            coordinates provided; "rel" will move the stage relatively by the
+            coordinates provided from the current position.
+        wait_until_idle : bool, optional.
+            Does the stage wait until the movement is complete before returning
+            control to the user? Set to False if the handyscope is acquiring
+            data at the same time.
         """
         coords = np.squeeze(coords)
         if coords.shape != (2,):
@@ -124,10 +148,27 @@ class Stage:
                 # Ease computation - only check if we are done 10 times per second.
                 time.sleep(.1)
     
-    def circle(self, centre, radius, N, T, length_units=Units.LENGTH_MILLIMETRES):
+    def circle(self, centre, radius: float, N: int, T: float, length_units=Units.LENGTH_MILLIMETRES):
         """
         Trace out a circle with some radius from the centre. Done by modelling
         it as an N-sided polygon traced out in time T.
+        
+        Parameters
+        ----------
+        centre : ndarray (2,)
+            Coordinates of the centre of the circle.
+        radius : float
+            Radius of the circle.
+        N : int
+            Number of sides to use in the polygon when approximating the
+            circle. larger N -> more circular.
+        T : float
+            Time in which to sweep out the circle (seconds). No checks are made
+            on how this impacts velocity - if it's too small then the circle
+            won't work properly.
+        length_units : Units, optional
+            Units used for all distances. The default is
+            Units.LENGTH_MILLIMETRES
         """
         v0 = 2*np.pi*radius / T
         # Circumferential positions. x-component modelled as real data, y- as imag.
@@ -142,69 +183,143 @@ class Stage:
 
 
 
-def square_coords(separation, *args):
+def grid_sweep_coords(separation: float, x_init: float, y_init: float, width: float, height: float, rotation: float, eps=eps):
     """
-    Generate coordinates for sweeping across a predetermined square.
+    Generate coordinates of a grid sweep within a rectangle. Rectangle is
+    defined by the bottom-left corner, its width, height and rotation about the
+    origin, and the sweep has spacing defined by separation. Note that the 
+    cells of the grid will all be square except for the edges if (width/sep) is
+    not an integer.
+
+    Parameters
+    ----------
+    separation : float
+        Separation of rows/columns in the grid.
+    x_init : float
+        x-coordinate of the origin.
+    y_init : float
+        y-coordinate of the origin.
+    width : float
+        Width of the rectangle (i.e. length in x-axis before rotation).
+    height : float
+        Height of the rectangle (i.e. length in y-axis before rotation).
+    rotation : float
+        Rotation (radians) of the rectangle about the origin.
+    eps : float, optional
+        Error value used for checking equivalence. Used to determine if the row
+        or column has exceeded the bounds. The default is eps.
+
+    Returns
+    -------
+    coords : ndarray (N, 2)
+        2D coordinates to be swept out. 
     """
-    coords = np.zeros((0, 2))
-    params = args[0]
-    x, y = params[0], params[1]
     
+    coords = np.zeros((0, 2))
+    x, y = x_init, y_init
+    
+    #%% Snake up through y. Grid will form in the axes of the square. Separation
+    # between rows will be equal to separation, length will span the full width.
+    # Terminate on the row before we leave the limits of the geometry.
     idx = 0
-    while y < params[1] + params[3]:
+    while y - (y_init + height * np.cos(rotation)) < eps:
         coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move from left -> right
         if idx%2 == 0:
-            x += params[2]
+            x += width * np.cos(rotation)
+            y += width * np.sin(rotation)
+        # Move from right -> left
         else:
-            x = params[0]
+            x -= width * np.cos(rotation)
+            y -= width * np.sin(rotation)
         coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
-        y += separation
+        # Move up to the next row
+        x += separation * np.sin(rotation)
+        y += separation * np.cos(rotation)
         
         idx += 1
+        
+    # We are currently outside of the geometry. To scan the full span, do a final
+    # row at the limit.
+    if idx%2 == 0:
+        coeff = +1
+        # Top left
+        x = x_init + height * np.sin(rotation)
+        y = y_init + height * np.cos(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move left -> right
+        x += width * np.cos(rotation)
+        y += width * np.sin(rotation)
+    else:
+        coeff = -1
+        # Top right
+        x = x_init + width * np.cos(rotation) + height * np.sin(rotation)
+        y = y_init + width * np.sin(rotation) + height * np.cos(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move right -> left
+        x -= width * np.cos(rotation)
+        y -= width * np.sin(rotation)
+    
+    #%% Snake back through x. x may be increasing or decreasing depending on
+    # where y terminated - check both lower and upper limits of x.
+    idx = 0
+    while x - (x_init - height * np.sin(rotation)) >= eps and x - (x_init + height * np.sin(rotation) + width * np.cos(rotation)) <= eps:
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move top -> bottom
+        if idx%2 == 0:
+            x -= height * np.sin(rotation)
+            y -= height * np.cos(rotation)
+        # Move bottom -> top
+        else:
+            x += height * np.sin(rotation)
+            y += height * np.cos(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move along to next column
+        x -= coeff * separation * np.cos(rotation)
+        y -= coeff * separation * np.sin(rotation)
+        
+        idx += 1
+        
+    # Do the final column at the limit.
+    # If x is increasing with subsequent columns
+    if coeff == -1:
+        # If we terminated at the top
+        if idx%2 == 0:
+            x = x_init + width * np.cos(rotation) + height * np.sin(rotation)
+            y = y_init + width * np.sin(rotation) + height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move top -> bottom
+            x -= height * np.sin(rotation)
+            y -= height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # If we terminated at the bottom
+        else:
+            x = x_init + width * np.cos(rotation)
+            y = y_init + width * np.sin(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move bottom -> top
+            x += height * np.sin(rotation)
+            y += height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+    # If x is decreasing with subsequent columns
+    else:
+        # If we terminated at the top
+        if idx%2 == 0:
+            x = x_init + height * np.sin(rotation)
+            y = y_init + height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move top -> bottom
+            x -= height * np.sin(rotation)
+            y -= height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # If we terminated at the bottom
+        else:
+            x = x_init
+            y = y_init
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move bottom -> top
+            x += height * np.sin(rotation)
+            y += height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
     
     return coords
-
-
-# def circle_polygonal(axis1, axis2, C, r, N, T, length_units=Units.LENGTH_MILLIMETRES):
-#     """
-#     Trace out a circle with two perpendicular axes. Approximates the circle
-#     with an N-sided polygon. Currently has stop-start behaviour between each
-#     segment.
-
-#     Parameters
-#     ----------
-#     axis1 : TYPE
-#         DESCRIPTION.
-#     axis2 : TYPE
-#         DESCRIPTION.
-#     C : list, array
-#         Centre position of the circle with units in dist_units.
-#     r : float
-#         Radius of the circle with units in dist_units.
-#     N : int
-#         Number of lines to discretise the circle into.
-#     T : float
-#         Desired total time taken in seconds. Note no checks made to ensure that
-#         resulting velocity is physical - this is left to the user.
-#     dist_units : Units, optional
-#         Units of distance used. The default is Units.LENGTH_MILLIMETRES.
-#     """
-#     v0 = 2*np.pi*r / T
-#     circle_r = np.round(r *np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1] * 1j, 6)
-#     circle_v = np.round(v0*np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1], 6)
-    
-#     vel_units = h.velocity_units(length_units)
-    
-#     axis1.move_absolute(C[1], length_units)
-#     axis2.move_absolute(C[0]+r, length_units)
-#     for ii in range(N):
-#         # If axis1 doesn't move
-#         if np.abs(np.real(circle_v[ii])) == 0:
-#             move_abs_v(axis2, C[0]+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])), velocity_units=vel_units)
-#         # If axis2 doesn't move
-#         elif np.abs(np.imag(circle_v[ii])) == 0:
-#             move_abs_v(axis1, C[1]+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), velocity_units=vel_units)
-#         # Then both must move
-#         else:
-#             move_abs_v(axis1, C[1]+np.real(circle_r[ii]), velocity=np.abs(np.real(circle_v[ii])), velocity_units=vel_units, wait_until_idle=False)
-#             move_abs_v(axis2, C[0]+np.imag(circle_r[ii]), velocity=np.abs(np.imag(circle_v[ii])), velocity_units=vel_units)

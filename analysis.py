@@ -11,7 +11,104 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 
-def fit_geometry_to_data(data, geom_profile="rect", init_params="default"):
+def correct_liftoff(*args):
+    """
+    Corrects for the liftoff. Uses the linear fitting function to determine
+    drift, and scales the data to the maximum value in data[:, 2].
+
+    Parameters
+    ----------
+    data : ndarray (n, 3)
+        Assumes that column 0 contains x-coordinates, column 1 contains y-
+        coordinates and column 2 contains the data which is being fitted.
+
+    Returns
+    -------
+    data : ndarray (n, 3)
+        0th and 1st columns unchanged, 2nd column is corrected using the linear
+        liftoff function.
+    """
+    if len(args) == 1:
+        data = args[0]
+    elif len(args) == 3:
+        num_pts = []
+        for arg in args:
+            num_pts.append(arg.shape[0])
+            # Check that data has the right dimensions
+            if len(arg.shape) != 1:
+                raise ValueError("correct_liftoff: Input data has the wrong shape.")
+            # Check that all inputs have the same number of data points.
+            if len(num_pts) != 0:
+                for pt in num_pts:
+                    if arg.shape[0] != pt:
+                        raise ValueError("correct_liftoff: Number of points in input arrays should be the same.")
+        data = np.array([args[0], args[1], args[2]]).T
+    else:
+        raise NotImplementedError("correct_liftoff: Wrong number of arguments provided.")
+    
+    params = lin_liftoff_params(data)
+    
+    # Do the correction.
+    if params.shape[0] == 3:
+        data[:, 2] = np.nanmax(data[:, 2]) * data[:, 2] / (params[0] * data[:, 0] + 
+                                                           params[1] * data[:, 1] + 
+                                                           params[2])
+    elif params.shape[0] == 6:
+        data[:, 2] = np.nanmax(data[:, 2]) * data[:, 2] / (params[0] * data[:, 0]**2 + 
+                                                           params[1] * data[:, 0] * data[:, 1] +
+                                                           params[2] * data[:, 1]**2 + 
+                                                           params[3] * data[:, 0] +
+                                                           params[4] * data[:, 1] +
+                                                           params[5])
+    
+    if len(args) == 1:
+        return data
+    elif len(args) == 3:
+        return np.squeeze(data[:, 0]), np.squeeze(data[:, 1]), np.squeeze(data[:, 2])
+
+def lin_liftoff_params(data):
+    """
+    Fits a linear curve to data, returning coefficients A, B and C of the eqn
+    z = Ax + By + C, where z are the measured values.
+
+    Parameters
+    ----------
+    data : ndarray (n, 3)
+        Assumes that column 0 contains x-coordinates, column 1 contains y-
+        coordinates and column 2 contains the data which is being fitted.
+
+    Returns
+    -------
+    A, B, C : floats
+        Coefficients of the linear equation z = Ax + By + C.
+    """
+    threshold = (np.nanmax(data[:, 2]) - np.nanmin(data[:, 2])) / 1.5
+    data = data[data[:, 2] > np.nanmin(data[:, 2])+threshold, :]
+    A = np.vstack([data[:, 0], data[:, 1], np.ones(data.shape[0])]).T
+    return np.linalg.lstsq(A, data[:, 2], rcond=None)[0]
+
+def quad_liftoff_params(data):
+    """
+    Fits a linear curve to data, returning coefficients A, B and C of the eqn
+    z = Ax^2 + Bxy + Cy^2 + Dx + Ey + F, where z are the measured values.
+
+    Parameters
+    ----------
+    data : ndarray (n, 3)
+        Assumes that column 0 contains x-coordinates, column 1 contains y-
+        coordinates and column 2 contains the data which is being fitted.
+
+    Returns
+    -------
+    A, B, C, D, E, F : floats
+        Coefficients of the linear equation z = Ax^2 + Bxy + Cy^2 + Dx + Ey + F.
+    """
+    threshold = (np.nanmax(data[:, 2]) - np.nanmin(data[:, 2])) / 1.5
+    data = data[data[:, 2] > np.nanmin(data[:, 2])+threshold, :]
+    A = np.vstack([data[:, 0]**2, data[:, 0]*data[:, 1], data[:, 1]**2, data[:, 0], data[:, 1], np.ones(data.shape[0])]).T
+    return np.linalg.lstsq(A, data[:, 2], rcond=None)[0]
+
+def fit_geometry_to_data(*args, geom_profile="rect", init_params="default"):
     """
     Attempts to work out the geometry of the sample measured in "data" by using
     scipy's curve_fit function. Note that each geometry must have its own
@@ -31,6 +128,24 @@ def fit_geometry_to_data(data, geom_profile="rect", init_params="default"):
             specify the initial parameters to use.
             
     """
+    if len(args) == 1:
+        data = args[0]
+    elif len(args) == 3:
+        num_pts = []
+        for arg in args:
+            num_pts.append(arg.shape[0])
+            # Check that data has the right dimensions
+            if len(arg.shape) != 1:
+                raise ValueError("correct_liftoff: Input data has the wrong shape.")
+            # Check that all inputs have the same number of data points.
+            if len(num_pts) != 0:
+                for pt in num_pts:
+                    if arg.shape[0] != pt:
+                        raise ValueError("correct_liftoff: Number of points in input arrays should be the same.")
+        data = np.array([args[0], args[1], args[2]]).T
+    else:
+        raise NotImplementedError("correct_liftoff: Wrong number of arguments provided.")
+    
     geom_profile_dict = {
         "rect" : [lst_dist_from_rect, [80, 40, 50, 50, 0]],
     }
@@ -44,18 +159,11 @@ def fit_geometry_to_data(data, geom_profile="rect", init_params="default"):
     #TODO: Need to choose a more appropriate threshold.
     grad_threshold = np.nanmax(grad)/10
     data = data[:-1, :]
-    data_grad = data[grad > grad_threshold, :]
-    
-    data_fit = data[data[:, 2] > .8, :]
-    A = np.vstack([data_fit[:, 0], data_fit[:, 1], np.ones(data_fit.shape[0])]).T
-    a, b, c = np.linalg.lstsq(A, data_fit[:, 2], rcond=None)[0]
-    
-    data_corrected = data_fit
-    data_corrected[:, 2] = data_corrected[:, 2] / (a*data_fit[:, 0] + b*data_fit[:, 1] + c)
+    data = data[grad > grad_threshold, :]
     
     params, cov_mat = curve_fit(
         geom_profile_dict[geom_profile][0],
-        data_grad[:, :2].T,
+        data[:, :2].T,
         np.zeros(data.shape[0]),
         p0=init_params
     )
@@ -105,7 +213,7 @@ def dist_from_line(pt, start, end):
     nearest = v1.reshape(-1, 1) * nearest_perc
     return np.linalg.norm(v2 - nearest, axis=0)
 
-def lst_dist_from_rect(pt, origin_x, origin_y, height, width, rotation):
+def lst_dist_from_rect(pt, origin_x, origin_y, width, height, rotation):
     """
     Calculates the distance of m points with coordinates "pt" from the nearest
     edge of a rectangle. The rectangle is defined with bottom-left corner
@@ -153,22 +261,3 @@ def lst_dist_from_rect(pt, origin_x, origin_y, height, width, rotation):
     dist4 = dist_from_line(pt, corner4, corner1)
     # Get the smallest distance for each of the points.
     return np.min([dist1, dist2, dist3, dist4], axis=0)
-
-
-
-if __name__ == "__main__":
-    filename = r".\output\CoarseScanSingleFreq.csv"
-    data = np.loadtxt(filename, skiprows=1, delimiter=',')
-    params = fit_geometry_to_data(data)
-    
-    rotation_matrix = np.asarray([[np.cos(params[4]), np.sin(params[4])], [-np.sin(params[4]), np.cos(params[4])]])
-    corner1 = [params[0], params[1]]
-    corner2 = [params[0], params[1]] + np.dot(np.asarray([params[3], 0]),         rotation_matrix)
-    corner3 = [params[0], params[1]] + np.dot(np.asarray([params[3], params[2]]), rotation_matrix)
-    corner4 = [params[0], params[1]] + np.dot(np.asarray([0,         params[2]]), rotation_matrix)
-    
-    plt.plot([corner1[0], corner2[0], corner3[0], corner4[0], corner1[0]], [corner1[1], corner2[1], corner3[1], corner4[1], corner1[1]], 'r')
-    plt.scatter(data[:, 0], data[:, 1], c=data[:, 2], marker='.')
-    plt.colorbar(label="RMS Voltage (V)")
-    plt.gca().set_aspect('equal')
-    plt.show()

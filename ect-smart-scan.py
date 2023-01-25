@@ -11,6 +11,7 @@ working out which port the device is connected to.
 N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 2 is the x-axis.
 """
+import analysis as an
 import csv
 import handyscope as hs
 import helpers as h
@@ -47,51 +48,12 @@ if __name__ == "__main__":
         with hs.Handyscope.from_yaml(yaml_filename) as handyscope:
             print(handyscope)
             
-            # Initialise stage position
-            stage.move([settings["trajectory"]["init_x"], settings["trajectory"]["init_y"]], velocity=10, mode="abs", wait_until_idle=True)
-            
-            # Get trajectory set up.
-            x_list = [settings["trajectory"]["coords"][i][0] for i in range(len(settings["trajectory"]["coords"]))]
-            y_list = [settings["trajectory"]["coords"][i][1] for i in range(len(settings["trajectory"]["coords"]))]
-            # If speed is a single value, replicate it to the same size as x_list and y_list.
-            if isinstance(settings["trajectory"]["v"], float):
-                v_list = [settings["trajectory"]["v"] for i in range(len(x_list))]
-            # If speed is a list of values, check how long it is.
-            elif isinstance(settings["trajectory"]["v"], list):
-                # If list of speeds is too small, cycle through it until we have the right length.
-                if len(settings["trajectory"]["v"]) < len(x_list):
-                    v_list = [settings["trajectory"]["v"][i%len(settings["trajectory"]["v"])] for i in range(len(x_list))]
-                # If list of speeds too large, only take up to the right length.
-                else:
-                    v_list = settings["trajectory"]["v"][:len(x_list)]
-            # We must have an invalid data type.
-            else:
-                raise TypeError("Velocity should be a list of floats or a float.")
-            
-            # Initialise output array so that if live plotting requested, there is an initial value for RMS.
-            out_data = None
-            t1 = time.time_ns() * 1e-9
-            #%% Actually perform the scan
-            for idx, (x, y, v) in enumerate(zip(x_list, y_list, v_list)):
-                # Work out what kind of analysis we want, and call the right one.
-                if settings["trajectory"]["analysis"].lower() == "rms":
-                    x_scan, y_scan, out_scan = sc.linear_scan_rms(handyscope, stage, [x, y], velocity=v)#, live_plot=True, old_val=out_data)
-                elif settings["trajectory"]["analysis"].lower() == "spec":
-                    x_scan, y_scan, out_scan = sc.linear_scan_spec(handyscope, stage, [x, y], velocity=v)#, live_plot=True, freq_range=[8.5e6, 14e6])
-                else:
-                    raise NotImplementedError("Analysis type must be 'RMS' or 'Spec'.")
-                # Initialise output arrays
-                if idx == 0:
-                    x_data = x_scan
-                    y_data = y_scan
-                    out_data = out_scan
-                # Append data
-                else:
-                    x_data   = np.append(x_data, x_scan)
-                    y_data   = np.append(y_data, y_scan)
-                    out_data = np.append(out_data, np.asarray(out_scan), axis=0)
-            t2 = time.time_ns() * 1e-9
-            print("Total scan time: {:.2f}s".format(t2-t1))
+            # Do the initial scan - work out the geometry.
+            x_data, y_data, out_data = sc.grid_sweep_scan(handyscope, stage, [45 , 120], 70, 70, 0, 20, velocity=5, live_plot=True)
+            # Correct for liftoff
+            _, _, out_data = an.correct_liftoff(x_data, y_data, out_data)
+            # Fit the grid
+            block_geometry = an.fit_geometry_to_data(x_data, y_data, out_data)
             
             #%% Output the data: #TODO Check that this plotting still works. It should do, but idxs may need adjusting
             if settings["trajectory"]["analysis"].lower() == "rms":

@@ -50,8 +50,8 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 		- [ ] Look for deviations from pristine material.
 		- [ ] Identify a way to return to these regions for a more fine scan
 	- [x] For RMS voltage: correct for vertical liftoff of probe.
-		- [x] In first instance treat it as linear V = ax + by + can
-		- [ ] Reading to work out if there's any nonlinearity there.
+		- [x] In first instance treat it as linear `V = ax + by + c`
+		- [ ] Are there any non-linear effects in liftoff? May need to add other effects.
 	- [ ] For phase: compare phase difference of input signal to output signal.
 		- [x] Check how good our generated input signal is, vs channel measurement on handyscope
 			- Signal looks very good, small amount of noise but not awful.  
