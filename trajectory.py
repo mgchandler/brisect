@@ -16,7 +16,7 @@ from zaber_motion.ascii import Connection
 eps = 1e-4
 
 class Stage:
-    __slots__ = ("connection", "axis1", "axis2", "mm_resolution")
+    __slots__ = ("connection", "axes", "axis1", "axis2", "mm_resolution")
     
     def __init__(self, port=None, initial_position=None, length_units=Units.LENGTH_MILLIMETRES, mm_resolution=eps):
         if port is None:
@@ -24,8 +24,14 @@ class Stage:
         self.connection = Connection.open_serial_port(port)
         device_list = self.connection.detect_devices()
         
-        self.axis1 = device_list[1].get_axis(1) # SN39116
-        self.axis2 = device_list[0].get_axis(1) # SN39117
+        self.axes = []
+        for device in device_list:
+            self.axes.append(device.get_axis(1))
+        # # Figure out how to sort this list based on something - ideally want it to end up with x, y, z as 0, 1, 2.
+        # self.axes = sorted(self.axes, lambda x:x)
+        
+        # self.axis1 = device_list[1].get_axis(1) # SN39116
+        # self.axis2 = device_list[0].get_axis(1) # SN39117
         
         if initial_position is not None:
             initial_position = np.squeeze(initial_position)
@@ -39,14 +45,18 @@ class Stage:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        # Reset velocity for Qiuji
+        for axis in self.axes:
+            axis.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        # self.axis1.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        # self.axis2.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         self.connection.close()
     
     def __str__(self):
         s  = "Zaber motion stage\n"
-        s += "\tAxis1:\n"
-        s += "\t\tPosition: {:9.6f}mm\n".format(self.axis1.get_position())
-        s += "\tAxis2:\n"
-        s += "\t\tPosition: {:9.6f}mm\n".format(self.axis2.get_position())
+        for idx, axis in enumerate(self.axes):
+            s += f"\tAxis{idx+1}:\n"
+            s += "\t\tPosition: {:9.6f}mm\n".format(axis.get_position())
         return s
     
     def move_x(self, distance, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
@@ -109,30 +119,39 @@ class Stage:
             data at the same time.
         """
         coords = np.squeeze(coords)
-        if coords.shape != (2,):
-            raise TypeError("Stage.move_abs(): coordinates must be supplied as two floats.")
+        if len(coords.shape) != 1 or coords.shape[0] < len(self.axes):
+            raise TypeError("Stage.move(): coordinates must be supplied as a list of floats. Make sure the list is 1D and there are fewer than the number of axes available.")
             
         # Convert velocity into displacement units.
         if velocity_units != h.velocity_units(length_units):
-            native_value = self.axis1.settings.convert_to_native_units("vel", velocity, velocity_units)
-            velocity = self.axis1.settings.convert_from_native_units("vel", native_value, h.velocity_units(length_units))
+            native_value = self.axes[0].settings.convert_to_native_units("vel", velocity, velocity_units)
+            velocity = self.axes[0].settings.convert_from_native_units("vel", native_value, h.velocity_units(length_units))
             velocity_units = h.velocity_units(length_units)
         
         # Compute components of velocity in x- and y-directions.
         if mode == "abs":
-            old_coords = np.asarray([self.axis2.get_position(), self.axis1.get_position()])
-            relative_disp = np.abs(coords - old_coords) # Component-wise distance
+            old_coords = np.asarray([axis.get_position() for axis in self.axes])
+            relative_displacement = np.abs(coords - old_coords) # Component-wise distance
         elif mode == "rel":
-            relative_disp = np.abs(coords) # Component-wise distance
+            relative_displacement = np.abs(coords) # Component-wise distance
         else:
             raise ValueError("Stage.move(): Movement mode should be 'abs' or 'rel'.")
-        relative_dist = np.sqrt(relative_disp[0]**2 + relative_disp[1]**2) # Hypotenuse
-        vx = velocity * relative_disp[0] / relative_dist
-        vy = velocity * relative_disp[1] / relative_dist
+        relative_distance = np.sqrt(np.sum(relative_displacement**2)) # Hypotenuse
+        vels = velocity * relative_displacement / relative_distance
+        # For each axis in this movement, we do not want to wait until idle unless we are on the very last axis.
+        idle_list = [False] * coords.shape[0]
+        idle_list[-1] = wait_until_idle
         
         # Move the stage
-        self.move_x(coords[0], length_units=length_units, velocity=vx, velocity_units=velocity_units, mode=mode, wait_until_idle=False)
-        self.move_y(coords[1], length_units=length_units, velocity=vy, velocity_units=velocity_units, mode=mode, wait_until_idle=wait_until_idle)
+        for idx, r, v in enumerate(zip(coords, vels)):
+            self.axes[idx].settings.set("maxspeed", v, velocity_units)
+            if mode == "abs":
+                self.axes[idx].move_absolute(r, length_units, wait_until_idle=idle_list[idx])
+            elif mode == "rel":
+                self.axes[idx].move_relative(r, length_units, wait_until_idle=idle_list[idx])
+            else:
+                raise ValueError("Movement mode should be 'abs' or 'rel'.")
+        
         # To move x and y at the same time, start x moving first and then move y.
         # If y finishes before x, control will pass back out while x is still moving - this may result in undefined behaviour.
         # Make sure that if we want to wait until idle, both x and y have finished before passing control back out.
