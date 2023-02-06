@@ -27,11 +27,9 @@ class Stage:
         self.axes = []
         for device in device_list:
             self.axes.append(device.get_axis(1))
-        # # Figure out how to sort this list based on something - ideally want it to end up with x, y, z as 0, 1, 2.
-        # self.axes = sorted(self.axes, lambda x:x)
-        
-        # self.axis1 = device_list[1].get_axis(1) # SN39116
-        # self.axis2 = device_list[0].get_axis(1) # SN39117
+        # Note that this has the order of the devices. It may be convenient to
+        # assume that these go as x, y, z, etc - if this is not the case, change
+        # the order of the axes using the Zaber console.
         
         if initial_position is not None:
             initial_position = np.squeeze(initial_position)
@@ -48,8 +46,6 @@ class Stage:
         # Reset velocity for Qiuji
         for axis in self.axes:
             axis.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-        # self.axis1.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-        # self.axis2.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         self.connection.close()
     
     def __str__(self):
@@ -59,47 +55,26 @@ class Stage:
             s += "\t\tPosition: {:9.6f}mm\n".format(axis.get_position())
         return s
     
-    def move_x(self, distance, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
-        """
-        Mimics the v7 firmware version of axis.move_absolute() for which
-        velocity can be specified. Overwrites the max speed of the axis to do
-        this, and does not undo it afterwards.
-        """
-        axis2 = self.axis2
-        axis2.settings.set("maxspeed", velocity, velocity_units)
-        if mode == "abs":
-            axis2.move_absolute(distance, length_units, wait_until_idle=wait_until_idle)
-        elif mode == "rel":
-            axis2.move_relative(distance, length_units, wait_until_idle=wait_until_idle)
-        else:
-            raise ValueError("Movement mode should be 'abs' or 'rel'.")
-        
-    def move_y(self, distance, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
-        """
-        Mimics the v7 firmware version of axis.move_absolute() for which
-        velocity can be specified. Overwrites the max speed of the axis to do
-        this, and does not undo it afterwards.
-        """
-        axis1 = self.axis1
-        axis1.settings.set("maxspeed", velocity, velocity_units)
-        if mode == "abs":
-            axis1.move_absolute(distance, length_units, wait_until_idle=wait_until_idle)
-        elif mode == "rel":
-            axis1.move_relative(distance, length_units, wait_until_idle=wait_until_idle)
-        else:
-            raise ValueError("Movement mode should be 'abs' or 'rel'.")
+    def shutdown(self):
+        # Reset velocity for Qiuji
+        for axis in self.axes:
+            axis.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        self.connection.close()        
     
     def move(self, coords, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
         """
-        Move the stage to a set of coordinates (x, y) - these can either be in
-        the absolute axis coordinates, or relative to the current position.
-        Velocity is taken to mean the total velocity that the stage moves in
-        the x- and y-directions, i.e. velocity=sqrt(v_x^2 + v_y^2)
+        Move the stage to a set of coordinates (x, y, ...) - these can either
+        be in the absolute axis coordinates, or relative to the current
+        position. Velocity is taken to mean the total velocity that the stage
+        moves in the each direction, i.e. velocity=sqrt(v_x^2 + v_y^2 + ...)
         
         Parameters
         ----------
-        coords : ndarray (2,)
-            Coordinates to move the stage to.
+        coords : ndarray (N,)
+            Coordinates to move the stage to. You can only supply coordinates
+            up to the number of axes. Any axes after that will not move. No
+            checks are made on the order of axes, use Zaber console to reorder
+            axes.
         length_units : Units, optional
             Units in which coordinates are defined. The default is
             Units.LENGTH_MILLIMETRES.
@@ -119,23 +94,24 @@ class Stage:
             data at the same time.
         """
         coords = np.squeeze(coords)
-        if len(coords.shape) != 1 or coords.shape[0] < len(self.axes):
+        if len(coords.shape) != 1 or coords.shape[0] > len(self.axes):
             raise TypeError("Stage.move(): coordinates must be supplied as a list of floats. Make sure the list is 1D and there are fewer than the number of axes available.")
-            
+        
         # Convert velocity into displacement units.
         if velocity_units != h.velocity_units(length_units):
             native_value = self.axes[0].settings.convert_to_native_units("vel", velocity, velocity_units)
             velocity = self.axes[0].settings.convert_from_native_units("vel", native_value, h.velocity_units(length_units))
             velocity_units = h.velocity_units(length_units)
         
-        # Compute components of velocity in x- and y-directions.
+        # Compute components of velocity in each direction.
         if mode == "abs":
-            old_coords = np.asarray([axis.get_position() for axis in self.axes])
-            relative_displacement = np.abs(coords - old_coords) # Component-wise distance
+            old_coords = np.asarray([axis.get_position(length_units) for axis in self.axes])
+            relative_displacement = np.abs(coords - old_coords[:len(coords)]) # Component-wise distance
         elif mode == "rel":
             relative_displacement = np.abs(coords) # Component-wise distance
         else:
             raise ValueError("Stage.move(): Movement mode should be 'abs' or 'rel'.")
+            
         relative_distance = np.sqrt(np.sum(relative_displacement**2)) # Hypotenuse
         vels = velocity * relative_displacement / relative_distance
         # For each axis in this movement, we do not want to wait until idle unless we are on the very last axis.
@@ -143,7 +119,7 @@ class Stage:
         idle_list[-1] = wait_until_idle
         
         # Move the stage
-        for idx, r, v in enumerate(zip(coords, vels)):
+        for idx, [r, v] in enumerate(zip(coords, vels)):
             self.axes[idx].settings.set("maxspeed", v, velocity_units)
             if mode == "abs":
                 self.axes[idx].move_absolute(r, length_units, wait_until_idle=idle_list[idx])
@@ -152,19 +128,13 @@ class Stage:
             else:
                 raise ValueError("Movement mode should be 'abs' or 'rel'.")
         
-        # To move x and y at the same time, start x moving first and then move y.
-        # If y finishes before x, control will pass back out while x is still moving - this may result in undefined behaviour.
-        # Make sure that if we want to wait until idle, both x and y have finished before passing control back out.
+        # Move x, y and maybe z at the same time, but issue commands in that order.
+        # Control returns when the last one finishes - if y finishes before x, control is returned
+        # before this method has terminated. We want to avoid this.
         if wait_until_idle:
-            last = 0
-            x_pos, y_pos = self.axis2.get_position(Units.LENGTH_MILLIMETRES), self.axis1.get_position(Units.LENGTH_MILLIMETRES)
-            #TODO: Maybe do this using velocity?
-            while abs(coords[0] - x_pos) > self.mm_resolution or abs(coords[1] - y_pos) > self.mm_resolution:
-                if last == np.sqrt((coords[0] - x_pos)**2 + (coords[1] - y_pos)**2) and last < self.mm_resolution:
-                    break
-                x_pos, y_pos = self.axis2.get_position(Units.LENGTH_MILLIMETRES), self.axis1.get_position(Units.LENGTH_MILLIMETRES)
-                last = np.sqrt((coords[0] - x_pos)**2 + (coords[1] - y_pos)**2)
-                # Ease computation - only check if we are done 10 times per second.
+            # While any axes are still busy
+            while any([self.axes[i].is_busy() for i in range(len(self.axes))]):
+                # Sleep and try again in .1 seconds
                 time.sleep(.1)
     
     def circle(self, centre, radius: float, N: int, T: float, length_units=Units.LENGTH_MILLIMETRES):
