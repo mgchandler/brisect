@@ -59,7 +59,14 @@ class Stage:
         # Reset velocity for Qiuji
         for axis in self.axes:
             axis.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-        self.connection.close()        
+        self.connection.close()  
+    
+    def stop(self):
+        """
+        Terminates movement of the axes.
+        """
+        for axis in self.axes:
+            axis.stop()
     
     def move(self, coords, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
         """
