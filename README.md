@@ -46,6 +46,8 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 		- [x] Coarse scan of entire domain with zaber.
 		- [x] In first instance, fit a box to metallic region.
 		- [ ] More clever prediction of geometry from resulting map.
+		  - [x] Snake around the full space until geometry found. At which point trace the edges of the geometry.
+		  - [ ] Trace the geometry: move back and forth over edge of geometry until a corner found. Use value of RMS to determine whether to turn left or right, and scan the next edge. Detect when the probe has returned to the start position.
 	- [x] Coarse scan of part for defects.
 		- [ ] Look for deviations from pristine material.
 		- [ ] Identify a way to return to these regions for a more fine scan
