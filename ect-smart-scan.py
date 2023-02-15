@@ -12,15 +12,12 @@ N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 2 is the x-axis.
 """
 import analysis as an
-import csv
 import handyscope as hs
 import helpers as h
-import libtiepie as ltp
 import matplotlib.pyplot as plt
 import numpy as np
 import scan as sc
 import sys
-import time
 import trajectory as traj
 from zaber_motion import Library
 

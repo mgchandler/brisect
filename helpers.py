@@ -15,10 +15,15 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import os
 from serial.tools.list_ports import comports
+from typing import Optional
 from zaber_motion import Units
 import yaml
 
-def get_port(manufacturer="FTDI"):
+#%% Useful global variables.
+eps = 1e-4
+
+#%% Connection functions.
+def get_port(manufacturer: str = "FTDI"):
     """
     Returns the port which the device of interest is connected to. Serial does
     not guarantee that comports() returns ports in order, thus we sort by port.
@@ -30,59 +35,9 @@ def get_port(manufacturer="FTDI"):
         if port.manufacturer == manufacturer:
             return port.device
     raise RuntimeError("Device cannot be found! Connect it and make sure drivers are installed.")
-
-def velocity_units(length_units):
-    """
-    Returns the equivalent units of velocity for the supplied length units.
-    """
-    if length_units == Units.LENGTH_METRES:
-        return Units.VELOCITY_METRES_PER_SECOND
-    elif length_units == Units.LENGTH_CENTIMETRES:
-        return Units.VELOCITY_CENTIMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_MILLIMETRES:
-        return Units.VELOCITY_MILLIMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_MICROMETRES:
-        return Units.VELOCITY_MICROMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_NANOMETRES:
-        return Units.VELOCITY_NANOMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_INCHES:
-        return Units.VELOCITY_INCHES_PER_SECOND
-    else:
-        raise TypeError("Length units are invalid")
-
-def find_gen(device_list):
-    """
-    Returns the index of the item in device_list which corresponds to a
-    generator.
-    """
-    for idx, item in enumerate(device_list):
-        if item.can_open(ltp.DEVICETYPE_GENERATOR):
-            gen = item.open_generator()
-            if gen.signal_types and ltp.ST_ARBITRARY:
-                # del gen
-                return idx
-    return None
-
-def find_scp(device_list):
-    """
-    Returns the index of the item in device_list which corresponds to a
-    oscilloscope.
-    """
-    for idx, item in enumerate(device_list):
-        if item.can_open(ltp.DEVICETYPE_OSCILLOSCOPE):
-            scp = item.open_oscilloscope()
-            if scp.measure_modes and ltp.MM_BLOCK:
-                # del scp
-                return idx
-    return None
-
-def rms(x):
-    """
-    Compute the root-mean-square of a numpy vector.
-    """
-    return np.sqrt(np.mean(np.asarray(x)**2))
-
-def read_settings(filename):
+    
+#%% Input/output functions.
+def read_settings(filename: str):
     """
     Reads in settings from file, and assigns default values when not given.
     """
@@ -125,7 +80,7 @@ def read_settings(filename):
     # which has been overwritten by settings.
     return default_settings
     
-def dict_merge(dict1, dict2):
+def dict_merge(dict1: dict, dict2: dict):
     """
     Merge two dictionaries preserving sub-dictionaries contained within. Values
     from dict2 are merged into dict1, taking dict2's value over dict1's in
@@ -144,19 +99,17 @@ def dict_merge(dict1, dict2):
         else:
             dict1[k] = dict2[k]
 
-def within_radius(origin, coords, radius):
-    """ 
-    Checks whether coordinates are within a radius of the origin, returning a
-    boolean of the result of the test.
-    """
-    origin = np.squeeze(origin)
-    coords = np.squeeze(coords)
-    if len(origin.shape) != 1 or len(coords.shape) != 1 or origin.shape[0] != coords.shape[0]:
-        raise ValueError("within_radius: origin and coords must be 1D vectors of equal length.")
-    distance = np.linalg.norm(coords - origin)
-    return distance < radius
-
-def save_csv(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (V)", zaxis=None, ignore_long_z_warning=False):
+def save_csv(
+        filename: str,
+        x: np.ndarray[float],
+        y: np.ndarray[float],
+        z: np.ndarray[Optional[float, complex]],
+        xunits: str = "mm",
+        yunits: str = "mm",
+        zlabel: str = "RMS Voltage (V)",
+        zaxis: np.ndarray[float] = None,
+        ignore_long_z_warning: bool = False
+    ):
     """
     Saves a csv of data.
     """
@@ -187,7 +140,15 @@ def save_csv(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (V
         for idx in range(x.shape[0]):
             csvwriter.writerow([x[idx], y[idx]] + list(z[idx, :]))
             
-def plot_data(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (V)"):
+def plot_data(
+        filename: str,
+        x: np.ndarray[float],
+        y: np.ndarray[float],
+        z: np.ndarray[Optional[float, complex]],
+        xunits: str = "mm",
+        yunits: str = "mm",
+        zlabel: str = "RMS Voltage (V)"
+    ):
     """
     Saves a single figure.
     """
@@ -217,3 +178,222 @@ def plot_data(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (
     ax2.set_axis_off()
     fig.colorbar(graph, ax=ax2, label=zlabel)
     plt.savefig(f"{filename}.png")
+
+#%% zaber_motion helper functions.
+def velocity_units(length_units: Units.LENGTH_XXX):
+    """
+    Returns the equivalent units of velocity for the supplied length units.
+    """
+    if length_units == Units.LENGTH_METRES:
+        return Units.VELOCITY_METRES_PER_SECOND
+    elif length_units == Units.LENGTH_CENTIMETRES:
+        return Units.VELOCITY_CENTIMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_MILLIMETRES:
+        return Units.VELOCITY_MILLIMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_MICROMETRES:
+        return Units.VELOCITY_MICROMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_NANOMETRES:
+        return Units.VELOCITY_NANOMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_INCHES:
+        return Units.VELOCITY_INCHES_PER_SECOND
+    else:
+        raise TypeError("Length units are invalid")
+
+#%% libtiepie helper functions.
+def find_gen(device_list: list):
+    """
+    Returns the index of the item in device_list which corresponds to a
+    generator.
+    """
+    for idx, item in enumerate(device_list):
+        if item.can_open(ltp.DEVICETYPE_GENERATOR):
+            gen = item.open_generator()
+            if gen.signal_types and ltp.ST_ARBITRARY:
+                # del gen
+                return idx
+    return None
+
+def find_scp(device_list: list):
+    """
+    Returns the index of the item in device_list which corresponds to a
+    oscilloscope.
+    """
+    for idx, item in enumerate(device_list):
+        if item.can_open(ltp.DEVICETYPE_OSCILLOSCOPE):
+            scp = item.open_oscilloscope()
+            if scp.measure_modes and ltp.MM_BLOCK:
+                # del scp
+                return idx
+    return None
+
+#%% Useful data analysis functions.
+def rms(x: np.ndarray[float]):
+    """
+    Compute the root-mean-square of a numpy vector.
+    """
+    return np.sqrt(np.mean(np.asarray(x)**2))
+
+def within_radius(
+        origin: np.ndarray[float],
+        coords: np.ndarray[float],
+        radius: float
+    ):
+    """ 
+    Checks whether coordinates are within a radius of the origin, returning a
+    boolean of the result of the test.
+    """
+    origin = np.squeeze(origin)
+    coords = np.squeeze(coords)
+    if len(origin.shape) != 1 or len(coords.shape) != 1 or origin.shape[0] != coords.shape[0]:
+        raise ValueError("within_radius: origin and coords must be 1D vectors of equal length.")
+    distance = np.linalg.norm(coords - origin)
+    return distance < radius
+
+def grid_sweep_coords(
+        separation: float,
+        x_init: float,
+        y_init: float,
+        width: float,
+        height: float,
+        rotation: float,
+        eps: float = eps,
+    ) -> np.ndarray[float]:
+    """
+    Generate coordinates of a grid sweep within a rectangle. Rectangle is
+    defined by the bottom-left corner, its width, height and rotation about the
+    origin, and the sweep has spacing defined by separation. Note that the 
+    cells of the grid will all be square except for the edges if (width/sep) is
+    not an integer.
+
+    Parameters
+    ----------
+    separation : float
+        Separation of rows/columns in the grid.
+    x_init : float
+        x-coordinate of the origin.
+    y_init : float
+        y-coordinate of the origin.
+    width : float
+        Width of the rectangle (i.e. length in x-axis before rotation).
+    height : float
+        Height of the rectangle (i.e. length in y-axis before rotation).
+    rotation : float
+        Rotation (radians) of the rectangle about the origin.
+    eps : float, optional
+        Error value used for checking equivalence. Used to determine if the row
+        or column has exceeded the bounds. The default is eps.
+
+    Returns
+    -------
+    coords : ndarray (N, 2)
+        2D coordinates to be swept out. 
+    """
+    
+    coords = np.zeros((0, 2))
+    x, y = x_init, y_init
+    
+    #%% Snake up through y. Grid will form in the axes of the square. Separation
+    # between rows will be equal to separation, length will span the full width.
+    # Terminate on the row before we leave the limits of the geometry.
+    idx = 0
+    while y - (y_init + height * np.cos(rotation)) < eps:
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move from left -> right
+        if idx%2 == 0:
+            x += width * np.cos(rotation)
+            y += width * np.sin(rotation)
+        # Move from right -> left
+        else:
+            x -= width * np.cos(rotation)
+            y -= width * np.sin(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move up to the next row
+        x += separation * np.sin(rotation)
+        y += separation * np.cos(rotation)
+        
+        idx += 1
+        
+    # We are currently outside of the geometry. To scan the full span, do a final
+    # row at the limit.
+    if idx%2 == 0:
+        coeff = +1
+        # Top left
+        x = x_init + height * np.sin(rotation)
+        y = y_init + height * np.cos(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move left -> right
+        x += width * np.cos(rotation)
+        y += width * np.sin(rotation)
+    else:
+        coeff = -1
+        # Top right
+        x = x_init + width * np.cos(rotation) + height * np.sin(rotation)
+        y = y_init + width * np.sin(rotation) + height * np.cos(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move right -> left
+        x -= width * np.cos(rotation)
+        y -= width * np.sin(rotation)
+    
+    #%% Snake back through x. x may be increasing or decreasing depending on
+    # where y terminated - check both lower and upper limits of x.
+    idx = 0
+    while x - (x_init - height * np.sin(rotation)) >= eps and x - (x_init + height * np.sin(rotation) + width * np.cos(rotation)) <= eps:
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move top -> bottom
+        if idx%2 == 0:
+            x -= height * np.sin(rotation)
+            y -= height * np.cos(rotation)
+        # Move bottom -> top
+        else:
+            x += height * np.sin(rotation)
+            y += height * np.cos(rotation)
+        coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # Move along to next column
+        x -= coeff * separation * np.cos(rotation)
+        y -= coeff * separation * np.sin(rotation)
+        
+        idx += 1
+        
+    # Do the final column at the limit.
+    # If x is increasing with subsequent columns
+    if coeff == -1:
+        # If we terminated at the top
+        if idx%2 == 0:
+            x = x_init + width * np.cos(rotation) + height * np.sin(rotation)
+            y = y_init + width * np.sin(rotation) + height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move top -> bottom
+            x -= height * np.sin(rotation)
+            y -= height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # If we terminated at the bottom
+        else:
+            x = x_init + width * np.cos(rotation)
+            y = y_init + width * np.sin(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move bottom -> top
+            x += height * np.sin(rotation)
+            y += height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+    # If x is decreasing with subsequent columns
+    else:
+        # If we terminated at the top
+        if idx%2 == 0:
+            x = x_init + height * np.sin(rotation)
+            y = y_init + height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move top -> bottom
+            x -= height * np.sin(rotation)
+            y -= height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+        # If we terminated at the bottom
+        else:
+            x = x_init
+            y = y_init
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+            # Move bottom -> top
+            x += height * np.sin(rotation)
+            y += height * np.cos(rotation)
+            coords = np.append(coords, np.reshape([x, y], (1, 2)), axis=0)
+    
+    return coords

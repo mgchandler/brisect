@@ -13,7 +13,6 @@ from helpers import find_gen, find_scp, read_settings
 import libtiepie as ltp
 import numpy as np
 import time
-import yaml
 
 gen_dict  = {'input_frequency':'frequency',
              'input_amplitude':'amplitude',
@@ -30,11 +29,15 @@ mode_dict = {'ST_SINE':ltp.ST_SINE,
              'CK_OHM':ltp.CK_OHM}
         
 class Handyscope:
-    """ Container for libtiepie's Generator and Oscilloscope classes. Use as a
+    """
+    Container for libtiepie's Generator and Oscilloscope classes. Use as a
     context manager for "with" statements supported, as well as automatically
-    reading data without additional setup. """
+    reading data without additional setup.
+    """
+    #%% Attributes
     __slots__ = ('gen', 'scp')
     
+    #%% Initialisation function.
     def __init__(self,
             input_frequency: float,
             input_amplitude: float,
@@ -100,9 +103,10 @@ class Handyscope:
         self.gen.amplitude   = np.max(input_amplitude)
         self.gen.offset      = input_offset
         self.gen.output_on   = True
-    
+        
+    #%% Initialisation classmethod.
     @classmethod
-    def from_yaml(cls, filename):
+    def from_yaml(cls, filename: str):
         settings = read_settings(filename)
         return cls(
             settings["generator"]["signal"]["frequency"],
@@ -118,16 +122,23 @@ class Handyscope:
             output_channel_coupling = mode_dict[settings["oscilloscope"]["coupling"]]
         )
     
+    #%% Dunder methods
     def __enter__(self):
-        """ Do the setup and return. """
+        """
+        Do the setup and return.
+        """
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        """ Close the connections. """
+        """
+        Close the connections.
+        """
         del self.gen, self.scp
     
     def __str__(self):
-        """ Display all the relevant information. """
+        """
+        Display all the relevant information.
+        """
         s  = "Handyscope:\n"
         s += "\tGenerator:\n"
         s += "\t\tFrequency:     {:12.6e}Hz (min: {:12.6e}Hz; max: {:12.6e}Hz)\n".format(self.gen.frequency, self.gen.frequency_min, self.gen.frequency_max)
@@ -139,8 +150,11 @@ class Handyscope:
         s += "\t\tRange:         {:12.3e} V\n".format(self.scp.channels[0].range)
         return s
     
+    #%% Methods
     def new_params(self, **kwargs):
-        """ Reinitialise with new settings. """
+        """ 
+        Reinitialise with new settings.
+        """
         for kw in kwargs.keys():
             if kw in gen_dict.keys():
                 self.gen.__setattr__(gen_dict[kw], kwargs[kw])
@@ -159,7 +173,7 @@ class Handyscope:
                 for idx, ch in enumerate(self.scp.channels):
                     ch.coupling = kwargs[kw]
     
-    def get_record(self, channels=[-1]):
+    def get_record(self, channels: list[int] = [-1]):
         """ Do all the data collection, so initialisation required outside. """
         self.scp.start()
         self.gen.start()

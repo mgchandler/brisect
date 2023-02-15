@@ -85,7 +85,7 @@ def geometry_search(
         raise ValueError("scan.geometry_search: origin must be array-like coordinates of length <= axes in stage.")
     #TODO: check that handyscope is recording RMS voltage
     # Determine coordinates of the grid
-    coords = traj.grid_sweep_coords(snake_separation, origin[0], origin[1], width, height, rotation)
+    coords = h.grid_sweep_coords(snake_separation, origin[0], origin[1], width, height, rotation)
     # Initialise stage position
     stage.move(coords, length_units=length_units, velocity=velocity, velocity_units=velocity_units)
     # Define break function: occurs when we move from off-geometry (low RMS) to on-geometry (high RMS). Assume that on geometry is >1% larger.
@@ -337,7 +337,7 @@ def grid_sweep_scan(handyscope, stage, origin, width, height, rotation, separati
     if origin.shape != (2,):
         raise ValueError("scan.grid_sweep_scan: origin must be 2D coordinates.")
     # Determine coordinates of the grid
-    coords = traj.grid_sweep_coords(separation, origin[0], origin[1], width, height, rotation)
+    coords = h.grid_sweep_coords(separation, origin[0], origin[1], width, height, rotation)
     
     # Initialise position. Will be absolute and we need it to wait until it arrives.
     stage.move(coords[0, :], length_units=length_units, velocity=velocity, velocity_units=velocity_units)
