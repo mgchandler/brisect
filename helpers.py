@@ -144,6 +144,18 @@ def dict_merge(dict1, dict2):
         else:
             dict1[k] = dict2[k]
 
+def within_radius(origin, coords, radius):
+    """ 
+    Checks whether coordinates are within a radius of the origin, returning a
+    boolean of the result of the test.
+    """
+    origin = np.squeeze(origin)
+    coords = np.squeeze(coords)
+    if len(origin.shape) != 1 or len(coords.shape) != 1 or origin.shape[0] != coords.shape[0]:
+        raise ValueError("within_radius: origin and coords must be 1D vectors of equal length.")
+    distance = np.linalg.norm(coords - origin)
+    return distance < radius
+
 def save_csv(filename, x, y, z, xunits="mm", yunits="mm", zlabel="RMS Voltage (V)", zaxis=None, ignore_long_z_warning=False):
     """
     Saves a csv of data.

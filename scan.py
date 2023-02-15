@@ -13,6 +13,7 @@ import numpy as np
 import time
 import trajectory as traj
 from typing import Callable, Optional, Tuple
+import warnings
 from zaber_motion import Units
 
 def geometry_search(
@@ -120,9 +121,10 @@ def geometry_search(
         
         # If we have found the geometry
         if break_state:
+            warnings.warn("Geometry tracing not yet implemented. Geometry found, continuing search.")
             print("geometry found!")
             stage.move(step, length_units=length_units, velocity=velocity, velocity_units=velocity_units)
-        
+    
     # return x_data, y_data, rms_data
 
 #%%
@@ -134,7 +136,7 @@ def trace_geometry(
         length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
         velocity: float = 1.,
         velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
-        live_plot: bool = False
+        live_plot: bool = False,
     ):
     """
     Traces the perimeter of the geometry which has just been found. The probe
@@ -172,9 +174,70 @@ def trace_geometry(
         Whether to plot each point which is detected in the geometry. The
         default is False.
     """
-    init_direction = np.squeeze(init_direction)
-    if len(init_direction.shape) != 1 or init_direction.shape[0] > len(stage.axes):
+    # Record the start position. Used to check whether we have completed tracing and terminate the loop.
+    origin = stage.get_position(length_units)
+    # Initialise start direction. Make it a unit vector of size == len(stage.axes)
+    init_direction = np.squeeze(init_direction).reshape((-1, 1))
+    if init_direction.shape[0] > len(stage.axes):
         raise ValueError("scan.trace_geometry: init_direction should be a vector of coodinates with length <= the number of axes.")
+    if len(stage.axes) < 2:
+        raise ValueError("scan.trace_geometry: geometry tracing requires at least two axes.")
+    if init_direction.shape[0] != len(stage.axes):
+        init_direction = np.append(init_direction, np.zeros((len(stage.axes)-init_direction.shape[0], 1)), axis=0)
+    init_direction /= np.linalg.norm(init_direction)
+    # Define rotation matrices for changing cardinal directions later.
+    cwise = np.identity(len(stage.axes))
+    ccwise = np.identity(len(stage.axes))
+    cwise[:2, :2] = [[0, -1], [1, 0]]
+    ccwise[:2, :2] = [[0, 1], [-1, 0]]
+    # Define break functions for moving on the geometry and off the geometry.
+    # Use geometry RMS and vacuum RMS to do this.
+    stage.move(5*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+    geom_rms = h.rms(handyscope.get_record())
+    stage.move(-10*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+    vac_rms = h.rms(handyscope.get_record())
+    on_geometry = lambda rms: rms > (geom_rms + vac_rms)/2
+    off_geometry = lambda rms: rms < (geom_rms + vac_rms)/2
+    # Reset initial position.
+    stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
+    # Define initial cardinal direction.
+    cardinal = np.dot(cwise, init_direction)
+    
+    #TODO: Check whether we need to move the start position into the geometry a little bit.
+    
+    first = True
+    current_pos = stage.get_position(length_units)
+    # We have just found the geometry, meaning that we are sat on top of it.
+    while first or h.within_radius(origin, current_pos, separation):
+        # Step once and move off the geometry.
+        stage.move(separation*cardinal, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+        coordinates, scan_data, break_state = linear_scan(
+            handyscope,
+            stage,
+            3*separation*np.dot(cardinal, cwise),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            move_mode="rel",
+            break_fn=off_geometry
+        )
+        current_pos = stage.get_position(length_units)
+        
+        # Step once and move on the geometry.
+        stage.move(separation*cardinal, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+        coordinates, scan_data, break_state = linear_scan(
+            handyscope,
+            stage,
+            3*separation*np.dot(cardinal, ccwise),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            move_mode="rel",
+            break_fn=on_geometry
+        )
+        current_pos = stage.get_position(length_units)
+
+
     
     
     
@@ -351,7 +414,7 @@ def linear_scan(
     
     #%% Start collecting the data
     while any([stage.axes[i].is_busy() for i in range(len(stage.axes))]):
-        step_loc = [stage.axes[i].get_position(length_units) for i in range(len(stage.axes))]
+        step_loc = stage.get_position(length_units)
         scan_val = handyscope.get_record()
         
         # Process the data and store it

@@ -156,6 +156,12 @@ class Stage:
                 # Sleep and try again in .1 seconds
                 time.sleep(.1)
     
+    def get_position(self, length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES):
+        """ 
+        Get the position of all of the axes.
+        """
+        return [self.axes[i].get_position(length_units) for i in range(len(self.axes))]
+    
     def circle(self,
             centre: list[float],
             radius: float,
