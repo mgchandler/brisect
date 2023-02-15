@@ -174,9 +174,7 @@ def trace_geometry(
         Whether to plot each point which is detected in the geometry. The
         default is False.
     """
-    # Record the start position. Used to check whether we have completed tracing and terminate the loop.
-    origin = stage.get_position(length_units)
-    # Initialise start direction. Make it a unit vector of size == len(stage.axes)
+    #%% Initialise start direction. Make it a unit vector of size == len(stage.axes)
     init_direction = np.squeeze(init_direction).reshape((-1, 1))
     if init_direction.shape[0] > len(stage.axes):
         raise ValueError("scan.trace_geometry: init_direction should be a vector of coodinates with length <= the number of axes.")
@@ -185,11 +183,16 @@ def trace_geometry(
     if init_direction.shape[0] != len(stage.axes):
         init_direction = np.append(init_direction, np.zeros((len(stage.axes)-init_direction.shape[0], 1)), axis=0)
     init_direction /= np.linalg.norm(init_direction)
+    # Record the start position. Used to check whether we have completed tracing and terminate the loop.
+    origin = stage.get_position(length_units)
     # Define rotation matrices for changing cardinal directions later.
     cwise = np.identity(len(stage.axes))
     ccwise = np.identity(len(stage.axes))
     cwise[:2, :2] = [[0, -1], [1, 0]]
     ccwise[:2, :2] = [[0, 1], [-1, 0]]
+    # Define initial cardinal direction.
+    cardinal = np.dot(cwise, init_direction)
+    
     # Define break functions for moving on the geometry and off the geometry.
     # Use geometry RMS and vacuum RMS to do this.
     stage.move(5*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
@@ -200,21 +203,31 @@ def trace_geometry(
     off_geometry = lambda rms: rms < (geom_rms + vac_rms)/2
     # Reset initial position.
     stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
-    # Define initial cardinal direction.
-    cardinal = np.dot(cwise, init_direction)
     
-    #TODO: Check whether we need to move the start position into the geometry a little bit.
-    
+    #%% For the first few loops, we will still be within the radius, but we do
+    # not want to break out of the loop. We will still be within the first few
+    # iterations if we have never left the radius: set `first` to False when
+    # we leave the radius, and make this a break condition. Thus we will
+    # terminate the loop when we return to the origin position.
     first = True
     current_pos = stage.get_position(length_units)
     # We have just found the geometry, meaning that we are sat on top of it.
-    while first or h.within_radius(origin, current_pos, separation):
+    while first or not h.within_radius(origin, current_pos, separation):
         # Step once and move off the geometry.
-        stage.move(separation*cardinal, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+        stage.move(
+            # Move √(2)*d at 45°: assume we are still on the geometry. Any
+            # further and the cardinal direction would be ±90°.
+            separation*cardinal + separation*np.dot(ccwise, cardinal),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            mode="rel",
+            wait_until_idle=True
+        )
         coordinates, scan_data, break_state = linear_scan(
             handyscope,
             stage,
-            3*separation*np.dot(cardinal, cwise),
+            3*separation*np.dot(cwise, cardinal),
             length_units=length_units,
             velocity=velocity,
             velocity_units=velocity_units,
@@ -222,25 +235,55 @@ def trace_geometry(
             break_fn=off_geometry
         )
         current_pos = stage.get_position(length_units)
+        # Are we still on the sample? Scan will not have broken if so.
+        if not break_state:
+            # Assume we are at a corner. Rotate cardinal direction +90°, and
+            # restart the loop.
+            cardinal = np.dot(cwise, cardinal)
+            continue
         
-        # Step once and move on the geometry.
-        stage.move(separation*cardinal, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
-        coordinates, scan_data, break_state = linear_scan(
-            handyscope,
-            stage,
-            3*separation*np.dot(cardinal, ccwise),
-            length_units=length_units,
-            velocity=velocity,
-            velocity_units=velocity_units,
-            move_mode="rel",
-            break_fn=on_geometry
-        )
-        current_pos = stage.get_position(length_units)
-
-
-    
-    
-    
+        # Store subset of scan data for which slope is largest - corresponds to
+        # change from geometry to vacuum.
+        #TODO
+        
+        break_state = False
+        while not break_state:
+            # Step once and move on the geometry.
+            stage.move(
+                separation*cardinal + separation*np.dot(cwise, cardinal),
+                length_units=length_units,
+                velocity=velocity,
+                velocity_units=velocity_units,
+                mode="rel",
+                wait_until_idle=True
+            )
+            coordinates, scan_data, break_state = linear_scan(
+                handyscope,
+                stage,
+                3*separation*np.dot(ccwise, cardinal),
+                length_units=length_units,
+                velocity=velocity,
+                velocity_units=velocity_units,
+                move_mode="rel",
+                break_fn=on_geometry
+            )
+            current_pos = stage.get_position(length_units)
+            # Are we still off the sample?
+            if not break_state:
+                # Assume we are at a corner. Rotate cardinal direction -90°, and
+                # restart from off the sample.
+                cardinal = np.dot(ccwise, cardinal)
+        
+        # Store subset of scan data for which slope is largest - corresponds to
+        # change from vacuum to geometry.
+        #TODO
+        
+        # See whether we have left the radius. Only do this in the first few
+        # iterations: after we have left this radius, no need to keep checking.
+        if first and not h.within_radius(origin, current_pos, separation):
+            first = False
+            
+            
     
 #%%
 def grid_sweep_scan(handyscope, stage, origin, width, height, rotation, separation, length_units=Units.LENGTH_MILLIMETRES, velocity=1, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, live_plot=False):
