@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import trajectory as traj
+from typing import Callable, Optional, Tuple
 from zaber_motion import Units
 
 def geometry_search(
@@ -174,7 +175,7 @@ def trace_geometry(
     init_direction = np.squeeze(init_direction)
     if len(init_direction.shape) != 1 or init_direction.shape[0] > len(stage.axes):
         raise ValueError("scan.trace_geometry: init_direction should be a vector of coodinates with length <= the number of axes.")
-    #TODO: check that the handyscope is set up to scan RMS voltage.
+    
     
     
     
@@ -267,10 +268,10 @@ def linear_scan(
         velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
         move_mode: str = "abs",
         scan_mode: str = "RMS",
-        break_fn: "fn(float)->bool" = None,
+        break_fn: Callable[[float], bool] = None,
         live_plot: bool = False,
         old_val: np.ndarray[float] = None
-    ):
+    ) -> Tuple[np.ndarray[float], np.ndarray[Optional[float, complex]], bool]:
     """
     Scans the sample using the handyscope while the stage moves the substrate
     in a line. Currently supports scanning RMS voltage and frequency spectrum

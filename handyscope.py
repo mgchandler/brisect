@@ -35,7 +35,19 @@ class Handyscope:
     reading data without additional setup. """
     __slots__ = ('gen', 'scp')
     
-    def __init__(self, input_frequency, input_amplitude, output_sample_frequency, output_record_length, output_range, input_signal_type=ltp.ST_SINE, input_offset=0, output_measure_mode=ltp.MM_BLOCK, output_resolution=12, output_active_channels=-1, output_channel_coupling=ltp.CK_ACV):
+    def __init__(self,
+            input_frequency: float,
+            input_amplitude: float,
+            output_sample_frequency: float,
+            output_record_length: int,
+            output_range: float,
+            input_signal_type: int = ltp.ST_SINE,
+            input_offset: float = 0,
+            output_measure_mode: int = ltp.MM_BLOCK,
+            output_resolution: int = 12,
+            output_active_channels: list[int] = -1,
+            output_channel_coupling: int = ltp.CK_ACV
+        ):
         ltp.device_list.update()
         self.gen = ltp.device_list.get_item_by_index(find_gen(ltp.device_list)).open_generator()
         self.scp = ltp.device_list.get_item_by_index(find_scp(ltp.device_list)).open_oscilloscope()
@@ -60,7 +72,7 @@ class Handyscope:
         self.scp.record_length    = int(output_record_length)
         
         #%% Initialise generator.
-        self.gen.signal_type = input_signal_type
+        self.gen.signal_type = mode_dict[input_signal_type]
         
         if input_signal_type == ltp.ST_SINE:
             if not isinstance(input_frequency, float):

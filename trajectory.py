@@ -16,9 +16,14 @@ from zaber_motion.ascii import Connection
 eps = 1e-4
 
 class Stage:
-    __slots__ = ("connection", "axes", "axis1", "axis2", "mm_resolution")
+    __slots__ = ("connection", "axes", "mm_resolution")
     
-    def __init__(self, port=None, initial_position=None, length_units=Units.LENGTH_MILLIMETRES, mm_resolution=eps):
+    def __init__(self,
+            port: str = None, 
+            initial_position: list[float] = None,
+            length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+            mm_resolution: float = eps
+        ):
         if port is None:
             port = h.get_port()
         self.connection = Connection.open_serial_port(port)
@@ -68,7 +73,14 @@ class Stage:
         for axis in self.axes:
             axis.stop()
     
-    def move(self, coords, length_units=Units.LENGTH_MILLIMETRES, velocity=10, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode="abs", wait_until_idle=True):
+    def move(self,
+            coords: np.ndarray,
+            length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+            velocity: float = 10,
+            velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
+            mode: str = "abs",
+            wait_until_idle: bool = True
+        ):
         """
         Move the stage to a set of coordinates (x, y, ...) - these can either
         be in the absolute axis coordinates, or relative to the current
@@ -144,7 +156,13 @@ class Stage:
                 # Sleep and try again in .1 seconds
                 time.sleep(.1)
     
-    def circle(self, centre, radius: float, N: int, T: float, length_units=Units.LENGTH_MILLIMETRES):
+    def circle(self,
+            centre: list[float],
+            radius: float,
+            N: int,
+            T: float, 
+            length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+        ):
         """
         Trace out a circle with some radius from the centre. Done by modelling
         it as an N-sided polygon traced out in time T.
@@ -179,7 +197,15 @@ class Stage:
 
 
 
-def grid_sweep_coords(separation: float, x_init: float, y_init: float, width: float, height: float, rotation: float, eps=eps):
+def grid_sweep_coords(
+        separation: float,
+        x_init: float,
+        y_init: float,
+        width: float,
+        height: float,
+        rotation: float,
+        eps: float = eps,
+    ) -> np.ndarray[float]:
     """
     Generate coordinates of a grid sweep within a rectangle. Rectangle is
     defined by the bottom-left corner, its width, height and rotation about the
