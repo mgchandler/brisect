@@ -26,7 +26,7 @@ class Stage:
     def __init__(self,
             port: str = None, 
             initial_position: list[float] = None,
-            length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+            length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
             mm_resolution: float = h.eps
         ):
         if port is None:
@@ -82,9 +82,9 @@ class Stage:
     
     def move(self,
             coords: np.ndarray[float],
-            length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+            length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
             velocity: float = 10,
-            velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
+            velocity_units: "Units.VELOCITY_XXX" = Units.VELOCITY_MILLIMETRES_PER_SECOND,
             mode: str = "abs",
             wait_until_idle: bool = True
         ):
@@ -146,6 +146,8 @@ class Stage:
         
         # Move the stage
         for idx, [r, v] in enumerate(zip(coords, vels)):
+            if v < 2e-5:
+                continue
             self.axes[idx].settings.set("maxspeed", v, velocity_units)
             if mode == "abs":
                 self.axes[idx].move_absolute(r, length_units, wait_until_idle=idle_list[idx])
@@ -163,7 +165,7 @@ class Stage:
                 # Sleep and try again in .1 seconds
                 time.sleep(.1)
     
-    def get_position(self, length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES):
+    def get_position(self, length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES):
         """ 
         Get the position of all of the axes.
         """
@@ -174,7 +176,7 @@ class Stage:
             radius: float,
             N: int,
             T: float, 
-            length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+            length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
         ):
         """
         Trace out a circle with some radius from the centre. Done by modelling

@@ -19,7 +19,7 @@ generator:
     
     # <float> ST_SINE REQUIRED Frequency of sinusoidal input signal (Hz). Only
     # required for ST_SINE type.
-    frequency: 13.0e+6
+    frequency: 3.0e+6
     
     # <float> REQUIRED Amplitude (V).
     amplitude: .1

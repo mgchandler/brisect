@@ -75,7 +75,10 @@ class Handyscope:
         self.scp.record_length    = int(output_record_length)
         
         #%% Initialise generator.
-        self.gen.signal_type = mode_dict[input_signal_type]
+        if isinstance(input_signal_type, str):
+            self.gen.signal_type = mode_dict[input_signal_type]
+        else:
+            self.gen.signal_type = input_signal_type
         
         if input_signal_type == ltp.ST_SINE:
             if not isinstance(input_frequency, float):

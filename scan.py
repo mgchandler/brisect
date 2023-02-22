@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import trajectory as traj
-from typing import Callable, Optional, Tuple
+from typing import Callable, Union, Tuple
 import warnings
 from zaber_motion import Units
 
@@ -25,9 +25,9 @@ def geometry_search(
         rotation: float = 0.,
         snake_separation: float = 50.,
         fuzzy_separation: float = 1.,
-        length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+        length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
         velocity: float = 5.,
-        velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
+        velocity_units: "Units.VELOCITY_XXX" = Units.VELOCITY_MILLIMETRES_PER_SECOND,
         live_plot: bool = False
     ):
     """
@@ -87,10 +87,10 @@ def geometry_search(
     # Determine coordinates of the grid
     coords = h.grid_sweep_coords(snake_separation, origin[0], origin[1], width, height, rotation)
     # Initialise stage position
-    stage.move(coords, length_units=length_units, velocity=velocity, velocity_units=velocity_units)
+    stage.move(coords[0, :], length_units=length_units, velocity=velocity, velocity_units=velocity_units)
     # Define break function: occurs when we move from off-geometry (low RMS) to on-geometry (high RMS). Assume that on geometry is >1% larger.
     off_geom = h.rms(handyscope.get_record())
-    find_geometry = lambda rms: rms > 1.01*off_geom
+    find_geometry = lambda rms: rms < .99*off_geom
     
     #%% Start the scan.
     rms_data = None
@@ -123,6 +123,19 @@ def geometry_search(
         if break_state:
             warnings.warn("Geometry tracing not yet implemented. Geometry found, continuing search.")
             print("geometry found!")
+            direction = coordinates[:, 1] - coordinates[:, 0]
+            geom_coords = trace_geometry(
+                handyscope,
+                stage, 
+                direction, 
+                separation=fuzzy_separation, 
+                length_units=length_units, 
+                velocity=velocity, 
+                velocity_units=velocity_units,
+                live_plot=live_plot
+            )
+            
+            
             stage.move(step, length_units=length_units, velocity=velocity, velocity_units=velocity_units)
     
     # return x_data, y_data, rms_data
@@ -133,9 +146,9 @@ def trace_geometry(
         stage: traj.Stage,
         init_direction: np.ndarray[float],
         separation: float = 1.,
-        length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+        length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
         velocity: float = 1.,
-        velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
+        velocity_units: "Units.VELOCITY_XXX" = Units.VELOCITY_MILLIMETRES_PER_SECOND,
         live_plot: bool = False,
     ):
     """
@@ -199,10 +212,12 @@ def trace_geometry(
     geom_rms = h.rms(handyscope.get_record())
     stage.move(-10*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
     vac_rms = h.rms(handyscope.get_record())
-    on_geometry = lambda rms: rms > (geom_rms + vac_rms)/2
-    off_geometry = lambda rms: rms < (geom_rms + vac_rms)/2
+    on_geometry = lambda rms: rms < (geom_rms + vac_rms)/2
+    off_geometry = lambda rms: rms > (geom_rms + vac_rms)/2
     # Reset initial position.
     stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
+    
+    geom_coords = np.zeros((3, 0))
     
     #%% For the first few loops, we will still be within the radius, but we do
     # not want to break out of the loop. We will still be within the first few
@@ -210,9 +225,10 @@ def trace_geometry(
     # we leave the radius, and make this a break condition. Thus we will
     # terminate the loop when we return to the origin position.
     first = True
-    current_pos = stage.get_position(length_units)
+    current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
     # We have just found the geometry, meaning that we are sat on top of it.
     while first or not h.within_radius(origin, current_pos, separation):
+        geom_coords = np.append(geom_coords, current_pos, axis=1)
         # Step once and move off the geometry.
         stage.move(
             # Move √(2)*d at 45°: assume we are still on the geometry. Any
@@ -234,7 +250,7 @@ def trace_geometry(
             move_mode="rel",
             break_fn=off_geometry
         )
-        current_pos = stage.get_position(length_units)
+        current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
         # Are we still on the sample? Scan will not have broken if so.
         if not break_state:
             # Assume we are at a corner. Rotate cardinal direction +90°, and
@@ -248,6 +264,7 @@ def trace_geometry(
         
         break_state = False
         while not break_state:
+            geom_coords = np.append(geom_coords, current_pos, axis=1)
             # Step once and move on the geometry.
             stage.move(
                 separation*cardinal + separation*np.dot(cwise, cardinal),
@@ -267,7 +284,7 @@ def trace_geometry(
                 move_mode="rel",
                 break_fn=on_geometry
             )
-            current_pos = stage.get_position(length_units)
+            current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
             # Are we still off the sample?
             if not break_state:
                 # Assume we are at a corner. Rotate cardinal direction -90°, and
@@ -282,7 +299,8 @@ def trace_geometry(
         # iterations: after we have left this radius, no need to keep checking.
         if first and not h.within_radius(origin, current_pos, separation):
             first = False
-            
+        
+    return geom_coords
             
     
 #%%
@@ -369,15 +387,15 @@ def linear_scan(
         handyscope: hs.Handyscope,
         stage: traj.Stage,
         target: np.ndarray[float],
-        length_units: Units.LENGTH_XXX = Units.LENGTH_MILLIMETRES,
+        length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
         velocity: float = 1.,
-        velocity_units: Units.VELOCITY_XXX = Units.VELOCITY_MILLIMETRES_PER_SECOND,
+        velocity_units: "Units.VELOCITY_XXX" = Units.VELOCITY_MILLIMETRES_PER_SECOND,
         move_mode: str = "abs",
         scan_mode: str = "RMS",
         break_fn: Callable[[float], bool] = None,
         live_plot: bool = False,
         old_val: np.ndarray[float] = None
-    ) -> Tuple[np.ndarray[float], np.ndarray[Optional[float, complex]], bool]:
+    ) -> Tuple[np.ndarray[float], np.ndarray[Union[float, complex]], bool]:
     """
     Scans the sample using the handyscope while the stage moves the substrate
     in a line. Currently supports scanning RMS voltage and frequency spectrum
@@ -457,7 +475,7 @@ def linear_scan(
     
     #%% Start collecting the data
     while any([stage.axes[i].is_busy() for i in range(len(stage.axes))]):
-        step_loc = stage.get_position(length_units)
+        step_loc = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
         scan_val = handyscope.get_record()
         
         # Process the data and store it
@@ -482,7 +500,7 @@ def linear_scan(
         
         # Check whether to break
         if break_fn is not None:
-            if break_fn(scan_val):
+            if break_fn(h.rms(scan_val)):
                 stage.stop()
                 break_state = True
                 break
@@ -561,3 +579,11 @@ def linear_scan_spec(handyscope, stage, target, length_units=Units.LENGTH_MILLIM
             time.sleep(.01)
     
     return x, y, spec
+
+def scan(handyscope):
+    """ 
+    Scans until broken.
+    """
+    old_vals = []
+    # while True:
+    #     vals = 

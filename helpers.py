@@ -15,7 +15,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import os
 from serial.tools.list_ports import comports
-from typing import Optional
+from typing import Union
 from zaber_motion import Units
 import yaml
 
@@ -103,7 +103,7 @@ def save_csv(
         filename: str,
         x: np.ndarray[float],
         y: np.ndarray[float],
-        z: np.ndarray[Optional[float, complex]],
+        z: np.ndarray[Union[float, complex]],
         xunits: str = "mm",
         yunits: str = "mm",
         zlabel: str = "RMS Voltage (V)",
@@ -144,7 +144,7 @@ def plot_data(
         filename: str,
         x: np.ndarray[float],
         y: np.ndarray[float],
-        z: np.ndarray[Optional[float, complex]],
+        z: np.ndarray[Union[float, complex]],
         xunits: str = "mm",
         yunits: str = "mm",
         zlabel: str = "RMS Voltage (V)"
@@ -180,7 +180,7 @@ def plot_data(
     plt.savefig(f"{filename}.png")
 
 #%% zaber_motion helper functions.
-def velocity_units(length_units: Units.LENGTH_XXX):
+def velocity_units(length_units: "Units.LENGTH_XXX"):
     """
     Returns the equivalent units of velocity for the supplied length units.
     """

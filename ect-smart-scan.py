@@ -45,6 +45,9 @@ if __name__ == "__main__":
         with hs.Handyscope.from_yaml(yaml_filename) as handyscope:
             print(handyscope)
             
+            sc.geometry_search(handyscope, stage, origin=[78, 67, 10.73], width=60, height=125, snake_separation=20, fuzzy_separation=5)
+            
+            
             # Do the initial scan - work out the geometry.
             x_data, y_data, out_data = sc.grid_sweep_scan(handyscope, stage, [45 , 120], 70, 70, 0, 20, velocity=5, live_plot=True)
             # Correct for liftoff
