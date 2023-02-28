@@ -5,24 +5,26 @@ Tested with Handyscope drivers v8.1.9. Developed with Python v3.10.
 
 ## Setup
 
-```{note}
-This is legacy installation information. The move to packaging this has been started and this may not be entirely up to date, although it should be close to the truth.
-```
+To get started, a valid Python installation is required. We advise that you create a new environment to install brisect to.
 
-To get started, a Python installation with `zaber-motion` and `python-libtiepie` packages is required. Suggested to set up a new environment using `mamba`:
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
-- Create a new environment from the Miniforge Prompt: `mamba create -n ect-smart-scan matplotlib numpy pyserial scipy spyder yaml` 
-- Activate the environment: `mamba activate ect-smart-scan`  
-- Install the `zaber-motion` package: `python -m pip install zaber-motion`
-- Install the `libtiepie` package: `python -m pip install python-libtiepie`
+- Create a new environment from the Miniforge Prompt: `mamba create -n bris-ect`
+- Activate the environment: `mamba activate bris-ect`
+- [Download]() the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
+- In the Miniforge console, change to the directory in which you saved the `*.whl` file.
+- Install the file: `python -m pip install brisect-x.x-py3-non-any.whl`. Change `x.x` to the version number you downloaded.
+
+Note that you may wish to install an IDE as well: `brisect` has been developed with Spyder (`mamba install spyder`). Others exist but your mileage may vary.
 
 You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install. TiePie driver v10 doesn't work with `python-libtiepie`, use v8.1.9 instead. An .exe is available in `.\drivers`.
 
-Make a fork of this repo on GitHub, and clone it to your device. Make changes there, and then make a pull request when significant changes made.
+If you are developing changes to this package, make a fork of this repo on GitHub, and clone it to your device. Make changes there, and then make a pull request when significant changes are made.
 
 ## Usage
 
-`ect-smart-scan.py` can either be run from an IDE or from the command line. To use from the command line, make a custom `<filename>.yml` file with properties filled out as found in the example in this repo.  
+See the `examples` folder for examples of how to use this package. If you have any problems or wish to request / add new features, please raise an issue on GitHub.
+
+`examples\ect-smart-scan.py` can either be run from an IDE or from the command line. To use from the command line, make a custom `<filename>.yml` file with properties filled out as found in the example in this repo.  
 To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To run from the command line, make sure that the `mamba` environment is activated and run `python ect-smart-scan.py <filename>.yml`. The script will execute, saving a png of the measured RMS values in the `output` directory.
 
 ## To do list:
