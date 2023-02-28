@@ -9,9 +9,10 @@ Enables single-command usage with the handyscope, for which both generator and
 oscilloscope are contained within one object.
 """
 import array
-from helpers import find_gen, find_scp, read_settings
+from brisect import read_settings
 import libtiepie as ltp
 import numpy as np
+import os
 import time
 
 gen_dict  = {'input_frequency':'frequency',
@@ -110,7 +111,24 @@ class Handyscope:
     #%% Initialisation classmethod.
     @classmethod
     def from_yaml(cls, filename: str):
+        """
+        Class method for Handyscope. Pass in either the filename (incl. path)
+        to the .yaml file containing the settings, or a default value included
+        in the `brisect` package. Defaults are `sine.yml` and `multiplex.yml`.
+
+        Parameters
+        ----------
+        filename : str
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        """
         settings = read_settings(filename)
+            
         return cls(
             settings["generator"]["signal"]["frequency"],
             settings["generator"]["signal"]["amplitude"],
@@ -206,3 +224,32 @@ class Handyscope:
                 else:
                     np_data[idx, :] = np.zeros((self.scp.record_length))
             return np.asarray(data)
+
+
+
+#%% libtiepie helper functions.
+def find_gen(device_list: list):
+    """
+    Returns the index of the item in device_list which corresponds to a
+    generator.
+    """
+    for idx, item in enumerate(device_list):
+        if item.can_open(ltp.DEVICETYPE_GENERATOR):
+            gen = item.open_generator()
+            if gen.signal_types and ltp.ST_ARBITRARY:
+                # del gen
+                return idx
+    return None
+
+def find_scp(device_list: list):
+    """
+    Returns the index of the item in device_list which corresponds to a
+    oscilloscope.
+    """
+    for idx, item in enumerate(device_list):
+        if item.can_open(ltp.DEVICETYPE_OSCILLOSCOPE):
+            scp = item.open_oscilloscope()
+            if scp.measure_modes and ltp.MM_BLOCK:
+                # del scp
+                return idx
+    return None

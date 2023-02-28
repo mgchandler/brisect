@@ -6,19 +6,22 @@ Created on Mon Dec 19 15:34:27 2022
 
 A file containing functions which combine the zaber stage and the handyscope.
 """
-import handyscope as hs
-import helpers as h
+from . import grid_sweep_coords, rms, within_radius
+# N.B. only used for type hints. If a stage other than the one in .zaberstage
+# is used, that's fine as long as it follows the standardised format.
+from handyscope import Handyscope
+from zaberstage import Stage
+
 import matplotlib.pyplot as plt
 import numpy as np
 import time
-import trajectory as traj
 from typing import Callable, Union, Tuple
 import warnings
 from zaber_motion import Units
 
 def geometry_search(
-        handyscope: hs.Handyscope, 
-        stage: traj.Stage,
+        handyscope: Handyscope, 
+        stage: Stage,
         origin: np.ndarray[float] = [0.,0.,0.],
         width: float = 200.,
         height: float = 200.,
@@ -85,12 +88,12 @@ def geometry_search(
         raise ValueError("scan.geometry_search: origin must be array-like coordinates of length <= axes in stage.")
     #TODO: check that handyscope is recording RMS voltage
     # Determine coordinates of the grid
-    coords = h.grid_sweep_coords(snake_separation, origin[0], origin[1], width, height, rotation)
+    coords = grid_sweep_coords(snake_separation, origin[0], origin[1], width, height, rotation)
     # Initialise stage position
     stage.move(coords[0, :], length_units=length_units, velocity=velocity, velocity_units=velocity_units)
     # Define break function: occurs when we move from off-geometry (low RMS) to on-geometry (high RMS). Assume that on geometry is >1% larger.
-    off_geom = h.rms(handyscope.get_record())
-    find_geometry = lambda rms: rms < .99*off_geom
+    off_geom = rms(handyscope.get_record())
+    find_geometry = lambda v: v < .99*off_geom
     
     #%% Start the scan.
     rms_data = None
@@ -142,8 +145,8 @@ def geometry_search(
 
 #%%
 def trace_geometry(
-        handyscope: hs.Handyscope,
-        stage: traj.Stage,
+        handyscope: Handyscope,
+        stage: Stage,
         init_direction: np.ndarray[float],
         separation: float = 1.,
         length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
@@ -209,11 +212,11 @@ def trace_geometry(
     # Define break functions for moving on the geometry and off the geometry.
     # Use geometry RMS and vacuum RMS to do this.
     stage.move(5*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
-    geom_rms = h.rms(handyscope.get_record())
+    geom_rms = rms(handyscope.get_record())
     stage.move(-10*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
-    vac_rms = h.rms(handyscope.get_record())
-    on_geometry = lambda rms: rms < (geom_rms + vac_rms)/2
-    off_geometry = lambda rms: rms > (geom_rms + vac_rms)/2
+    vac_rms = rms(handyscope.get_record())
+    on_geometry = lambda v: v < (geom_rms + vac_rms)/2
+    off_geometry = lambda v: v > (geom_rms + vac_rms)/2
     # Reset initial position.
     stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
     
@@ -227,7 +230,7 @@ def trace_geometry(
     first = True
     current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
     # We have just found the geometry, meaning that we are sat on top of it.
-    while first or not h.within_radius(origin, current_pos, separation):
+    while first or not within_radius(origin, current_pos, separation):
         geom_coords = np.append(geom_coords, current_pos, axis=1)
         # Step once and move off the geometry.
         stage.move(
@@ -297,7 +300,7 @@ def trace_geometry(
         
         # See whether we have left the radius. Only do this in the first few
         # iterations: after we have left this radius, no need to keep checking.
-        if first and not h.within_radius(origin, current_pos, separation):
+        if first and not within_radius(origin, current_pos, separation):
             first = False
         
     return geom_coords
@@ -355,7 +358,7 @@ def grid_sweep_scan(handyscope, stage, origin, width, height, rotation, separati
     if origin.shape != (2,):
         raise ValueError("scan.grid_sweep_scan: origin must be 2D coordinates.")
     # Determine coordinates of the grid
-    coords = h.grid_sweep_coords(separation, origin[0], origin[1], width, height, rotation)
+    coords = grid_sweep_coords(separation, origin[0], origin[1], width, height, rotation)
     
     # Initialise position. Will be absolute and we need it to wait until it arrives.
     stage.move(coords[0, :], length_units=length_units, velocity=velocity, velocity_units=velocity_units)
@@ -384,8 +387,8 @@ def grid_sweep_scan(handyscope, stage, origin, width, height, rotation, separati
 
 #%%
 def linear_scan(
-        handyscope: hs.Handyscope,
-        stage: traj.Stage,
+        handyscope: Handyscope,
+        stage: Stage,
         target: np.ndarray[float],
         length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
         velocity: float = 1.,
@@ -481,7 +484,7 @@ def linear_scan(
         # Process the data and store it
         coordinates = np.append(coordinates, step_loc, axis=1)
         if scan_mode == "rms":
-            scan_data = np.append(scan_data, h.rms(scan_val))
+            scan_data = np.append(scan_data, rms(scan_val))
         elif scan_mode == "spec":
             scan_data = np.append(scan_data, np.fft.rfft(scan_val[0, :]), axis=1)
         
@@ -500,7 +503,7 @@ def linear_scan(
         
         # Check whether to break
         if break_fn is not None:
-            if break_fn(h.rms(scan_val)):
+            if break_fn(rms(scan_val)):
                 stage.stop()
                 break_state = True
                 break
@@ -519,30 +522,30 @@ def linear_scan_rms(handyscope, stage, target, length_units=Units.LENGTH_MILLIME
     # Initialise storage
     x   = []
     y   = []
-    rms = []
+    v = []
     # Start moving the stage
     stage.move(target, length_units=Units.LENGTH_MILLIMETRES, velocity=velocity, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, mode=move_mode, wait_until_idle=False)
 
     # Collect the data
     while abs(target[0] - stage.axis2.get_position(Units.LENGTH_MILLIMETRES)) > stage.mm_resolution or abs(target[1] - stage.axis1.get_position(Units.LENGTH_MILLIMETRES)) > stage.mm_resolution:
-        rms.append(h.rms(handyscope.get_record()))
+        v.append(rms(handyscope.get_record()))
         x.append(stage.axis2.get_position(Units.LENGTH_MILLIMETRES))
         y.append(stage.axis1.get_position(Units.LENGTH_MILLIMETRES))
         # Only collect 100 times per second - #TODO will need tweaking depending on velocity.
         # Plotting takes a bit of time, else explicitly sleep for a period of time.
         if live_plot:
-            if len(rms) < 100:
+            if len(v) < 100:
                 if old_val is not None:
-                    plt.plot(list(old_val[-100+len(rms):]) + rms)
+                    plt.plot(list(old_val[-100+len(v):]) + v)
                 else:
-                    plt.plot(rms)
+                    plt.plot(v)
             else:
-                plt.plot(rms[-100:])
+                plt.plot(v[-100:])
             plt.show()
         else:
             time.sleep(.01)
         
-    return np.asarray(x), np.asarray(y), np.asarray(rms)
+    return np.asarray(x), np.asarray(y), np.asarray(v)
 
 def linear_scan_spec(handyscope, stage, target, length_units=Units.LENGTH_MILLIMETRES, velocity=1, velocity_units=Units.VELOCITY_MILLIMETRES_PER_SECOND, move_mode="abs", live_plot=False, freq_range=None):
     """

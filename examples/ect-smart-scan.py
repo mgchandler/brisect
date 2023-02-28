@@ -11,15 +11,16 @@ working out which port the device is connected to.
 N.B. in device_list, device 0 is the z-axis, device 1 is the y-axis and device
 2 is the x-axis.
 """
-import analysis as an
-import handyscope as hs
-import helpers as h
 import matplotlib.pyplot as plt
 import numpy as np
-import scan as sc
 import sys
-import trajectory as traj
 from zaber_motion import Library
+
+# Can get rid of this if the package has been installed.
+sys.path.append(r"C:\Users\mc16535\OneDrive - University of Bristol\Documents\Postgrad\Coding\brisect")
+import brisect as ect
+from brisect.handyscope import Handyscope
+from brisect.zaberstage import Stage
 
 # Enables script to be imported for use in other scripts
 if __name__ == "__main__":
@@ -30,7 +31,7 @@ if __name__ == "__main__":
         yaml_filename = sys.argv[1]
     # Typically called when running in IDE, or if no arg given from cmd.
     else:
-        yaml_filename = "test_sine.yml"
+        yaml_filename = "sine.yml"
     
     # Update devices from internet
     try:
@@ -38,27 +39,27 @@ if __name__ == "__main__":
     except NotImplementedError:
         pass #TODO: Demand local storage of device database
         
-    settings = h.read_settings(yaml_filename)
+    settings = ect.read_settings(yaml_filename)
     
     #%% Start the scan
-    with traj.Stage() as stage:
-        with hs.Handyscope.from_yaml(yaml_filename) as handyscope:
+    with Stage() as stage:
+        with Handyscope.from_yaml(yaml_filename) as handyscope:
             print(handyscope)
             
-            sc.geometry_search(handyscope, stage, origin=[78, 67, 10.73], width=60, height=125, snake_separation=20, fuzzy_separation=5)
+            ect.geometry_search(handyscope, stage, origin=[78, 67, 10.73], width=60, height=125, snake_separation=20, fuzzy_separation=5)
             
             
             # Do the initial scan - work out the geometry.
-            x_data, y_data, out_data = sc.grid_sweep_scan(handyscope, stage, [45 , 120], 70, 70, 0, 20, velocity=5, live_plot=True)
+            x_data, y_data, out_data = ect.grid_sweep_scan(handyscope, stage, [45 , 120], 70, 70, 0, 20, velocity=5, live_plot=True)
             # Correct for liftoff
-            _, _, out_data = an.correct_liftoff(x_data, y_data, out_data)
+            _, _, out_data = ect.correct_liftoff(x_data, y_data, out_data)
             # Fit the grid
-            block_geometry = an.fit_geometry_to_data(x_data, y_data, out_data)
+            block_geometry = ect.fit_geometry_to_data(x_data, y_data, out_data)
             
             #%% Output the data: #TODO Check that this plotting still works. It should do, but idxs may need adjusting
             if settings["trajectory"]["analysis"].lower() == "rms":
-                h.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
-                h.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
+                ect.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
+                ect.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
                 
             elif settings["trajectory"]["analysis"].lower() == "spec":
                 freq = np.fft.rfftfreq(handyscope.scp.record_length, 1/handyscope.scp.sample_frequency)
@@ -67,5 +68,5 @@ if __name__ == "__main__":
                 for idx, f in enumerate(settings["generator"]["signal"]["frequency"]):
                     f_idx = np.argmin(np.abs(freq - f))
                     export_data[:, idx] = out_data[:, f_idx]
-                    h.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, x_data, out_data[:, f_idx], zlabel="Frequency Spectrum at {:.1f}MHz".format(f*10**-6))
-                h.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, export_data, zlabel="spec ", zaxis=settings["generator"]["signal"]["frequency"])
+                    ect.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, x_data, out_data[:, f_idx], zlabel="Frequency Spectrum at {:.1f}MHz".format(f*10**-6))
+                ect.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, export_data, zlabel="spec ", zaxis=settings["generator"]["signal"]["frequency"])

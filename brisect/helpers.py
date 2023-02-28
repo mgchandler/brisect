@@ -9,14 +9,13 @@ any other file. Should consist of short, easily read functions, rather than
 anything too much more extensive.
 """
 import csv
-import libtiepie as ltp
+from importlib.resources import files
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import os
 from serial.tools.list_ports import comports
 from typing import Union
-from zaber_motion import Units
 import yaml
 
 #%% Useful global variables.
@@ -73,8 +72,12 @@ def read_settings(filename: str):
             "init_y":0,
         },
     }
-    with open(filename, 'r') as file:
-        settings = yaml.safe_load(file)
+    try:
+        with open(filename, 'r') as file:
+            settings = yaml.safe_load(file)
+    except FileNotFoundError:
+        file_path = files('brisect.default_settings').joinpath(filename)
+        settings = yaml.safe_load(file_path.read_text())
     dict_merge(default_settings, settings)
     # default_settings now contains all the default values, plus everything
     # which has been overwritten by settings.
@@ -178,53 +181,6 @@ def plot_data(
     ax2.set_axis_off()
     fig.colorbar(graph, ax=ax2, label=zlabel)
     plt.savefig(f"{filename}.png")
-
-#%% zaber_motion helper functions.
-def velocity_units(length_units: "Units.LENGTH_XXX"):
-    """
-    Returns the equivalent units of velocity for the supplied length units.
-    """
-    if length_units == Units.LENGTH_METRES:
-        return Units.VELOCITY_METRES_PER_SECOND
-    elif length_units == Units.LENGTH_CENTIMETRES:
-        return Units.VELOCITY_CENTIMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_MILLIMETRES:
-        return Units.VELOCITY_MILLIMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_MICROMETRES:
-        return Units.VELOCITY_MICROMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_NANOMETRES:
-        return Units.VELOCITY_NANOMETRES_PER_SECOND
-    elif length_units == Units.LENGTH_INCHES:
-        return Units.VELOCITY_INCHES_PER_SECOND
-    else:
-        raise TypeError("Length units are invalid")
-
-#%% libtiepie helper functions.
-def find_gen(device_list: list):
-    """
-    Returns the index of the item in device_list which corresponds to a
-    generator.
-    """
-    for idx, item in enumerate(device_list):
-        if item.can_open(ltp.DEVICETYPE_GENERATOR):
-            gen = item.open_generator()
-            if gen.signal_types and ltp.ST_ARBITRARY:
-                # del gen
-                return idx
-    return None
-
-def find_scp(device_list: list):
-    """
-    Returns the index of the item in device_list which corresponds to a
-    oscilloscope.
-    """
-    for idx, item in enumerate(device_list):
-        if item.can_open(ltp.DEVICETYPE_OSCILLOSCOPE):
-            scp = item.open_oscilloscope()
-            if scp.measure_modes and ltp.MM_BLOCK:
-                # del scp
-                return idx
-    return None
 
 #%% Useful data analysis functions.
 def rms(x: np.ndarray[float]):

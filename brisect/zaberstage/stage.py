@@ -7,7 +7,7 @@ Created on Thu Dec  8 15:42:02 2022
 A file containing Stage class which wraps around zaber_motion containing axis1 
 (y) and axis2 (x), assuming firmware v6. Also contains some helper functions.
 """
-import helpers as h
+from brisect import get_port, eps
 import numpy as np
 import time
 from zaber_motion import Units
@@ -27,10 +27,10 @@ class Stage:
             port: str = None, 
             initial_position: list[float] = None,
             length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
-            mm_resolution: float = h.eps
+            mm_resolution: float = eps
         ):
         if port is None:
-            port = h.get_port()
+            port = get_port()
         self.connection = Connection.open_serial_port(port)
         device_list = self.connection.detect_devices()
         
@@ -47,17 +47,18 @@ class Stage:
                 raise ValueError("Stage: initial_position should be a list of two coordinates")
             self.move_abs(initial_position, length_units=length_units)
         
-        self.mm_resolution = h.eps
+        self.mm_resolution = eps
         
     #%% Dunder methods.
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.shutdown()
         # Reset velocity for Qiuji
-        for axis in self.axes:
-            axis.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-        self.connection.close()
+        # for axis in self.axes:
+        #     axis.settings.set("maxspeed", 15, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        # self.connection.close()
     
     def __str__(self):
         s  = "Zaber motion stage\n"
@@ -124,10 +125,10 @@ class Stage:
             raise TypeError("Stage.move(): coordinates must be supplied as a list of floats. Make sure the list is 1D and there are fewer than the number of axes available.")
         
         # Convert velocity into displacement units.
-        if velocity_units != h.velocity_units(length_units):
+        if velocity_units != l2v_units(length_units):
             native_value = self.axes[0].settings.convert_to_native_units("vel", velocity, velocity_units)
-            velocity = self.axes[0].settings.convert_from_native_units("vel", native_value, h.velocity_units(length_units))
-            velocity_units = h.velocity_units(length_units)
+            velocity = self.axes[0].settings.convert_from_native_units("vel", native_value, l2v_units(length_units))
+            velocity_units = l2v_units(length_units)
         
         # Compute components of velocity in each direction.
         if mode == "abs":
@@ -204,8 +205,30 @@ class Stage:
         # Round to 6 decimal places, as when close to zero this can have weird behaviour.
         circle_r = np.round(radius*np.exp(2j*np.pi*np.linspace(0, 1, N+1))[:-1] * 1j, 6) + centre[0] + 1j*centre[1]
         
-        vel_units = h.velocity_units(length_units)
+        vel_units = l2v_units(length_units)
         
         self.move(centre + np.squeeze([radius, 0]), length_units=length_units)
         for i in range(N):
             self.move([np.real(circle_r[i]), np.imag(circle_r[i])], length_units=length_units, velocity=v0, velocity_units=vel_units)
+
+
+
+#%% zaber_motion helper functions.
+def l2v_units(length_units: "Units.LENGTH_XXX"):
+    """
+    Returns the equivalent units of velocity for the supplied length units.
+    """
+    if length_units == Units.LENGTH_METRES:
+        return Units.VELOCITY_METRES_PER_SECOND
+    elif length_units == Units.LENGTH_CENTIMETRES:
+        return Units.VELOCITY_CENTIMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_MILLIMETRES:
+        return Units.VELOCITY_MILLIMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_MICROMETRES:
+        return Units.VELOCITY_MICROMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_NANOMETRES:
+        return Units.VELOCITY_NANOMETRES_PER_SECOND
+    elif length_units == Units.LENGTH_INCHES:
+        return Units.VELOCITY_INCHES_PER_SECOND
+    else:
+        raise TypeError("Length units are invalid")

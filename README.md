@@ -1,9 +1,13 @@
-# ECT Smart Scan
+# Bris-ECT
 
-A Python library for automated scanning of a metallic component using eddy current coil. 2D scanning using Zaber linear stages enabled using feedback from measurements made by a Handyscope.
-Written and tested using X-LSM200A-E03 linear stages in x- and y-axes in the UNDT lab, with Handyscope HS5 making measurements, with drivers v8.1.9. Developed with Python v3.10.
+A Python library for standardisation of Handyscope and translation stages. This has currently been tested with handyscopes HS3 and HS5, and with Zaber linear stages (X-LSM200A-E03) which have firmware v6. Minor changes will need to be made regarding the velocity of stages if firmware v7 is used.
+Tested with Handyscope drivers v8.1.9. Developed with Python v3.10.
 
 ## Setup
+
+```{note}
+This is legacy installation information. The move to packaging this has been started and this may not be entirely up to date, although it should be close to the truth.
+```
 
 To get started, a Python installation with `zaber-motion` and `python-libtiepie` packages is required. Suggested to set up a new environment using `mamba`:
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
@@ -12,7 +16,7 @@ To get started, a Python installation with `zaber-motion` and `python-libtiepie`
 - Install the `zaber-motion` package: `python -m pip install zaber-motion`
 - Install the `libtiepie` package: `python -m pip install python-libtiepie`
 
-You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install. TiePie driver v10 doesn't work with `python-libtiepie`, use v8.1.9 instead.
+You may need to install the correct drivers to connect to the Zaber linear stage: see the [USB drivers](https://www.zaber.com/software) page to install. TiePie driver v10 doesn't work with `python-libtiepie`, use v8.1.9 instead. An .exe is available in `.\drivers`.
 
 Make a fork of this repo on GitHub, and clone it to your device. Make changes there, and then make a pull request when significant changes made.
 
