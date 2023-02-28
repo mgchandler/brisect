@@ -14,4 +14,4 @@ __email__ = "m.chandler@bristol.ac.uk"
 __copyright__ = f"{__author__} 2022-2023"
 __license__ = "MIT"
 
-__version__ = "0.1a1"
+__version__ = "0.1a2"

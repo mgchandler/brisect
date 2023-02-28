@@ -14,6 +14,7 @@ import libtiepie as ltp
 import numpy as np
 import os
 import time
+import warnings
 
 gen_dict  = {'input_frequency':'frequency',
              'input_amplitude':'amplitude',
@@ -23,8 +24,9 @@ scp_dict  = {'output_sample_frequency':'sample_frequency',
              'output_record_length':'record_length',
              'output_measure_mode':'measure_mode',
              'output_resolution':'resolution'}
-mode_dict = {'ST_SINE':ltp.ST_SINE,
-             'ST_ARBITRARY':ltp.ST_ARBITRARY,
+mode_dict = {'singlefreq':ltp.ST_SINE,
+             'multiplex':ltp.ST_ARBITRARY,
+             'arbitrary':ltp.ST_ARBITRARY,
              'MM_BLOCK':ltp.MM_BLOCK,
              'CK_ACV':ltp.CK_ACV,
              'CK_OHM':ltp.CK_OHM}
@@ -45,12 +47,13 @@ class Handyscope:
             output_sample_frequency: float,
             output_record_length: int,
             output_range: float,
-            input_signal_type: int = ltp.ST_SINE,
+            input_signal_type: str = "singlefreq",
             input_offset: float = 0,
             output_measure_mode: int = ltp.MM_BLOCK,
             output_resolution: int = 12,
             output_active_channels: list[int] = -1,
-            output_channel_coupling: int = ltp.CK_ACV
+            output_channel_coupling: int = ltp.CK_ACV,
+            **kwargs
         ):
         ltp.device_list.update()
         self.gen = ltp.device_list.get_item_by_index(find_gen(ltp.device_list)).open_generator()
@@ -67,11 +70,17 @@ class Handyscope:
             if output_active_channels[0] == -1 or idx in output_active_channels:
                 ch.enabled  = True
                 ch.range    = output_range
-                ch.coupling = output_channel_coupling
+                if isinstance(output_channel_coupling, str):
+                    ch.coupling = mode_dict[output_channel_coupling]
+                else:
+                    ch.coupling = output_channel_coupling
             else:
                 ch.enabled  = False
         self.scp.sample_frequency = output_sample_frequency
-        self.scp.measure_mode     = output_measure_mode
+        if isinstance(output_measure_mode, str):
+            self.scp.measure_mode = mode_dict[output_measure_mode]
+        else:
+            self.scp.measure_mode = output_measure_mode
         self.scp.resolution       = output_resolution
         self.scp.record_length    = int(output_record_length)
         
@@ -81,12 +90,14 @@ class Handyscope:
         else:
             self.gen.signal_type = input_signal_type
         
-        if input_signal_type == ltp.ST_SINE:
+        # Set up a single frequency.
+        if input_signal_type == ltp.ST_SINE or input_signal_type == "singlefreq":
             if not isinstance(input_frequency, float):
                 raise TypeError("Input frequency must be a float for sine signal generation")
             self.gen.frequency = input_frequency
             
-        elif input_signal_type == ltp.ST_ARBITRARY:
+        # Set up a multiplex scan.
+        elif input_signal_type == "multiplex":
             if not isinstance(input_frequency, list):
                 raise TypeError("Input frequency must be a list of floats for arbitrary signal generation")
             if len(input_amplitude) != len(input_frequency):
@@ -101,9 +112,15 @@ class Handyscope:
             sig = np.zeros(self.scp.record_length)
             for amp, freq in zip(input_amplitude, input_frequency):
                 sig += amp * np.sin(2*np.pi*freq * pts)
-            self.gen.set_data(array.array('f', sig))
+            self.set_data(sig)
+        
+        # Any other arbitrary signal, relies on the user setting the signal later.
+        elif input_signal_type == "arbitrary":
+            self.gen.frequency_mode = ltp.FM_SAMPLEFREQUENCY
+            self.gen.frequency = self.scp.sample_frequency
+            warnings.warn("Handyscope: Arbitrary signal requires writing the signal externally. Remember to set the signal with Handyscope.set_data(signal), where signal is arraylike with length {}.".format(self.scp.record_length))
         else:
-            raise NotImplementedError("Currently only sine and arbitrary signals are supported.")
+            raise NotImplementedError("Only singlefreq, multiplex and arbitrary currently supported.")
         self.gen.amplitude   = np.max(input_amplitude)
         self.gen.offset      = input_offset
         self.gen.output_on   = True
@@ -135,12 +152,12 @@ class Handyscope:
             settings["oscilloscope"]["frequency"],
             settings["oscilloscope"]["record_length"],
             settings["oscilloscope"]["range"],
-            input_signal_type       = mode_dict[settings["generator"]["signal"]["type"]],
+            input_signal_type       = settings["generator"]["signal"]["type"],
             input_offset            = settings["generator"]["offset"],
-            output_measure_mode     = mode_dict[settings["oscilloscope"]["mode"]],
+            output_measure_mode     = settings["oscilloscope"]["mode"],
             output_resolution       = settings["oscilloscope"]["resolution"],
             output_active_channels  = settings["oscilloscope"]["active_channels"],
-            output_channel_coupling = mode_dict[settings["oscilloscope"]["coupling"]]
+            output_channel_coupling = settings["oscilloscope"]["coupling"],
         )
     
     #%% Dunder methods
@@ -193,6 +210,19 @@ class Handyscope:
             elif kw == "output_channel_coupling":
                 for idx, ch in enumerate(self.scp.channels):
                     ch.coupling = kwargs[kw]
+    
+    def set_data(self, signal):
+        """ 
+        Write an arbitrary signal to the generator.
+        
+        signal : arraylike
+            arraylike of floating values, should have length equal to 
+            Handyscope.scp.record_length.
+        """
+        signal = np.squeeze(signal)
+        if len(signal.shape) != 1 or signal.shape[0] != self.scp.record_length:
+            raise ValueError("Handyscope.set_data(): signal has the wrong size: it should be arraylike with length {}.".format(self.scp.record_length))
+        self.gen.set_data(array.array('f', signal))
     
     def get_record(self, channels: list[int] = [-1]):
         """ Do all the data collection, so initialisation required outside. """

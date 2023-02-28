@@ -10,7 +10,7 @@ To get started, a valid Python installation is required. We advise that you crea
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
 - Create a new environment from the Miniforge Prompt: `mamba create -n bris-ect`
 - Activate the environment: `mamba activate bris-ect`
-- [Download]() the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
+- [Download](https://github.com/mgchandler/brisect/releases/download/v0.1a1/brisect-0.1a1-py3-none-any.whl) the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
 - In the Miniforge console, change to the directory in which you saved the `*.whl` file.
 - Install the file: `python -m pip install brisect-x.x-py3-non-any.whl`. Change `x.x` to the version number you downloaded.
 
