@@ -98,9 +98,10 @@ setup(
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
-    package_data={
-        "default_settings": ["*.yml"]
-    },
+    # package_data={
+    #     "brisect": ["default_settings/*.yml"]
+    # },
+    include_package_data=True,
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
     # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa

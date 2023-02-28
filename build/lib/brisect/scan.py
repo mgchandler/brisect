@@ -9,8 +9,8 @@ A file containing functions which combine the zaber stage and the handyscope.
 from . import grid_sweep_coords, rms, within_radius
 # N.B. only used for type hints. If a stage other than the one in .zaberstage
 # is used, that's fine as long as it follows the standardised format.
-from handyscope import Handyscope
-from zaberstage import Stage
+from .handyscope import Handyscope
+from .zaberstage import Stage
 
 import matplotlib.pyplot as plt
 import numpy as np

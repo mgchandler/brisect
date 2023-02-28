@@ -1,3 +1,4 @@
+MANIFEST.in
 README.md
 setup.cfg
 setup.py
@@ -11,7 +12,16 @@ brisect.egg-info/dependency_links.txt
 brisect.egg-info/not-zip-safe
 brisect.egg-info/requires.txt
 brisect.egg-info/top_level.txt
+brisect/default_settings/multiplex.yml
+brisect/default_settings/sine.yml
 brisect/handyscope/__init__.py
 brisect/handyscope/handyscope.py
 brisect/zaberstage/__init__.py
 brisect/zaberstage/stage.py
+examples/ect-smart-scan.py
+examples/output/CoarseScanMultiFreq 11MHz.png
+examples/output/CoarseScanMultiFreq 12MHz.png
+examples/output/CoarseScanMultiFreq 13MHz.png
+examples/output/CoarseScanMultiFreq.csv
+examples/output/CoarseScanSingleFreq.csv
+examples/output/CoarseScanSingleFreq.png
