@@ -48,10 +48,11 @@ def read_settings(filename: str):
             # Loose requirement: not used at the moment.
             "name":"Aluminium",
         },
-        # # All generator parameters are required.
-        # "generator":{
-        # 
-        # },
+        # All generator parameters are required.
+        "generator":{
+            # Optional: number of repeats of input signal. Only required for HS5.
+            "burst_count": 1
+        },
         "oscilloscope":{
             # Loose requirement: method of data acquisition.
             "mode":"MM_BLOCK",

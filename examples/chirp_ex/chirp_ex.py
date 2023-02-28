@@ -6,9 +6,11 @@ Created on Tue Feb 28 14:37:59 2023
 
 Demonstration of a chirp signal scan.
 """
-from brisect.handyscope import Handyscope
+# from brisect.handyscope import Handyscope
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+os.chdir(r"C:\Users\mc16535\OneDrive - University of Bristol\Documents\Postgrad\Coding\brisect\examples\chirp_ex")
 
 freq_1 = 0.2e3
 freq_2 = 55e3

@@ -29,6 +29,9 @@ generator:
 
   # <float> REQUIRED DC Offset (V).
   offset: 0
+  
+  # <int> OPTIONAL Bursts
+  burst_count: 5
     
 oscilloscope:
   # <float> REQUIRED Sample frequency. Should be >= 2*f_max, with f_max the

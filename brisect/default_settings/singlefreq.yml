@@ -1,7 +1,7 @@
 job:
   # <str> REQUIRED Name of the scan. Should contain no spaces or special
   # characters.
-  name: CoarseScanSingleFreq
+  name: CoarseSinglefreq
 
 
 
@@ -15,7 +15,7 @@ material:
 generator:
   signal:
     # <str> REQUIRED Signal type. Currently supports: ST_SINE
-    type: ST_SINE
+    type: singlefreq
     
     # <float> ST_SINE REQUIRED Frequency of sinusoidal input signal (Hz). Only
     # required for ST_SINE type.

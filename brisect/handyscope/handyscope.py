@@ -49,13 +49,14 @@ class Handyscope:
             output_range: float,
             input_signal_type: str = "singlefreq",
             input_offset: float = 0,
+            input_burst_count: int = 1,
             output_measure_mode: int = ltp.MM_BLOCK,
             output_resolution: int = 12,
             output_active_channels: list[int] = -1,
             output_channel_coupling: int = ltp.CK_ACV,
-            **kwargs
         ):
         ltp.device_list.update()
+        hstype = ltp.device_list.get_item_by_index(find_gen(ltp.device_list))._get_name_shortest()
         self.gen = ltp.device_list.get_item_by_index(find_gen(ltp.device_list)).open_generator()
         self.scp = ltp.device_list.get_item_by_index(find_scp(ltp.device_list)).open_oscilloscope()
         
@@ -124,6 +125,8 @@ class Handyscope:
         self.gen.amplitude   = np.max(input_amplitude)
         self.gen.offset      = input_offset
         self.gen.output_on   = True
+        if hstype == "HS5":
+            self.gen.burst_count = input_burst_count
         
     #%% Initialisation classmethod.
     @classmethod
@@ -154,6 +157,7 @@ class Handyscope:
             settings["oscilloscope"]["range"],
             input_signal_type       = settings["generator"]["signal"]["type"],
             input_offset            = settings["generator"]["offset"],
+            input_burst_count       = settings["generator"]["burst_count"],
             output_measure_mode     = settings["oscilloscope"]["mode"],
             output_resolution       = settings["oscilloscope"]["resolution"],
             output_active_channels  = settings["oscilloscope"]["active_channels"],
