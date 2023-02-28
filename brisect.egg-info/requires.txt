@@ -1,0 +1,14 @@
+numpy
+scipy
+matplotlib
+pyyaml
+pyserial
+python-libtiepie
+zaber-motion
+
+[dev]
+pytest
+numdifftools
+sphinx
+sphinx_rtd_theme
+black
