@@ -56,6 +56,8 @@ class Handyscope:
             output_channel_coupling: int = ltp.CK_ACV,
         ):
         ltp.device_list.update()
+        if find_gen(ltp.device_list) is None or find_scp(ltp.device_list) is None:
+            raise RuntimeError("No handyscope found! Please connect and make sure drivers are the right version.")
         hstype = ltp.device_list.get_item_by_index(find_gen(ltp.device_list))._get_name_shortest()
         self.gen = ltp.device_list.get_item_by_index(find_gen(ltp.device_list)).open_generator()
         self.scp = ltp.device_list.get_item_by_index(find_scp(ltp.device_list)).open_oscilloscope()

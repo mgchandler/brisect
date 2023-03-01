@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: brisect
-Version: 0.1a2
+Version: 0.1.2a1
 Summary: Python library to improve working with handyscopes and translation stages
 Home-page: https://github.com/mgchandler/brisect
 Author: Matt Chandler, Alexis Hernandez Arroyo
@@ -29,7 +29,7 @@ To get started, a valid Python installation is required. We advise that you crea
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
 - Create a new environment from the Miniforge Prompt: `mamba create -n bris-ect`
 - Activate the environment: `mamba activate bris-ect`
-- [Download](https://github.com/mgchandler/brisect/releases/download/v0.1a1/brisect-0.1a1-py3-none-any.whl) the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
+- [Download](https://github.com/mgchandler/brisect/blob/main/dist/brisect-0.1a2-py3-none-any.whl) the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
 - In the Miniforge console, change to the directory in which you saved the `*.whl` file.
 - Install the file: `python -m pip install brisect-x.x-py3-non-any.whl`. Change `x.x` to the version number you downloaded.
 
@@ -87,4 +87,4 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 	- [x] Select a more appropriate capacitor.
 	- [x] Select a more appropriate frequency.
 	- [x] Run program from command line, return all useful analysis as plots or print to screen.
-	- [ ] GUI?
+	- [ ] GUI?
