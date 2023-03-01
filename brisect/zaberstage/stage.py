@@ -82,7 +82,7 @@ class Stage:
             axis.stop()
     
     def move(self,
-            coords: np.ndarray[float],
+            target: np.ndarray[float],
             length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
             velocity: float = 10,
             velocity_units: "Units.VELOCITY_XXX" = Units.VELOCITY_MILLIMETRES_PER_SECOND,
@@ -97,7 +97,7 @@ class Stage:
         
         Parameters
         ----------
-        coords : ndarray (N,)
+        target : ndarray (N,)
             Coordinates to move the stage to. You can only supply coordinates
             up to the number of axes. Any axes after that will not move. No
             checks are made on the order of axes, use Zaber console to reorder
@@ -120,8 +120,8 @@ class Stage:
             control to the user? Set to False if the handyscope is acquiring
             data at the same time.
         """
-        coords = np.squeeze(coords)
-        if len(coords.shape) != 1 or coords.shape[0] > len(self.axes):
+        target = np.squeeze(target)
+        if len(target.shape) != 1 or target.shape[0] > len(self.axes):
             raise TypeError("Stage.move(): coordinates must be supplied as a list of floats. Make sure the list is 1D and there are fewer than the number of axes available.")
         
         # Convert velocity into displacement units.
@@ -132,21 +132,21 @@ class Stage:
         
         # Compute components of velocity in each direction.
         if mode == "abs":
-            old_coords = np.asarray([axis.get_position(length_units) for axis in self.axes])
-            relative_displacement = np.abs(coords - old_coords[:len(coords)]) # Component-wise distance
+            old_coords = self.get_position(length_units)
+            relative_displacement = np.abs(target - old_coords[:len(target)]) # Component-wise distance
         elif mode == "rel":
-            relative_displacement = np.abs(coords) # Component-wise distance
+            relative_displacement = np.abs(target) # Component-wise distance
         else:
             raise ValueError("Stage.move(): Movement mode should be 'abs' or 'rel'.")
             
         relative_distance = np.sqrt(np.sum(relative_displacement**2)) # Hypotenuse
         vels = velocity * relative_displacement / relative_distance
         # For each axis in this movement, we do not want to wait until idle unless we are on the very last axis.
-        idle_list = [False] * coords.shape[0]
+        idle_list = [False] * target.shape[0]
         idle_list[-1] = wait_until_idle
         
         # Move the stage
-        for idx, [r, v] in enumerate(zip(coords, vels)):
+        for idx, [r, v] in enumerate(zip(target, vels)):
             if v < 2e-5:
                 continue
             self.axes[idx].settings.set("maxspeed", v, velocity_units)

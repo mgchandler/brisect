@@ -44,27 +44,29 @@ if __name__ == "__main__":
             print(handyscope)
             
             # Look for the geometry and trace it out.
-            ect.geometry_search(handyscope, stage, origin=[78, 67, 10.73], width=60, height=125, snake_separation=20, fuzzy_separation=5)
+            coordinates, rms_data, geom_coords = ect.domain_search(
+                handyscope, 
+                stage, 
+                origin=[settings['trajectory']['init_x'], settings['trajectory']['init_y'], settings['trajectory']['init_z']],
+                width=100,
+                height=100,
+                snake_separation=25,
+                fuzzy_separation=5
+            )
             
+            # We have an approximation for the geometry. Scan within it to look for defects.
+            coords, rms_scan, defect_coords = ect.domain_search(
+                handyscope,
+                stage,
+                origin="from geom_coords",
+                width="from geom_coords",
+                height="from geom_coords",
+                snake_separation=5,
+                fuzzy_separation=1
+            )
+            coordinates = np.append(coordinates, coords, axis=1)
+            rms_data = np.append(rms_data, rms_scan, axis=1)
             
-            # # Do the initial scan - work out the geometry.
-            # x_data, y_data, out_data = ect.grid_sweep_scan(handyscope, stage, [45 , 120], 70, 70, 0, 20, velocity=5, live_plot=True)
-            # # Correct for liftoff
-            # _, _, out_data = ect.correct_liftoff(x_data, y_data, out_data)
-            # # Fit the grid
-            # block_geometry = ect.fit_geometry_to_data(x_data, y_data, out_data)
-            
-            # #%% Output the data: #TODO Check that this plotting still works. It should do, but idxs may need adjusting
-            # if settings["trajectory"]["analysis"].lower() == "rms":
-            #     ect.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
-            #     ect.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, out_data)
-                
-            # elif settings["trajectory"]["analysis"].lower() == "spec":
-            #     freq = np.fft.rfftfreq(handyscope.scp.record_length, 1/handyscope.scp.sample_frequency)
-            #     export_data = np.empty((out_data.shape[0], len(settings["generator"]["signal"]["frequency"])), dtype=out_data.dtype)
-            #     # Only do the frequencies which we have multiplexed.
-            #     for idx, f in enumerate(settings["generator"]["signal"]["frequency"]):
-            #         f_idx = np.argmin(np.abs(freq - f))
-            #         export_data[:, idx] = out_data[:, f_idx]
-            #         ect.plot_data(r"output\{}".format(settings["job"]["name"]), x_data, x_data, out_data[:, f_idx], zlabel="Frequency Spectrum at {:.1f}MHz".format(f*10**-6))
-            #     ect.save_csv(r"output\{}".format(settings["job"]["name"]), x_data, y_data, export_data, zlabel="spec ", zaxis=settings["generator"]["signal"]["frequency"])
+            # Save the data.
+            ect.plot_data(settings["job"]["name"], coords, rms_scan)
+            ect.save_csv(settings["job"]["name"], coordinates, rms_data)
