@@ -10,7 +10,7 @@ To get started, a valid Python installation is required. We advise that you crea
 - Install [`mamba-forge`](https://github.com/conda-forge/miniforge#mambaforge) to your device.
 - Create a new environment from the Miniforge Prompt: `mamba create -n bris-ect`
 - Activate the environment: `mamba activate bris-ect`
-- [Download](https://github.com/mgchandler/brisect/blob/main/dist/brisect-0.1a2-py3-none-any.whl) the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
+- [Download](https://github.com/mgchandler/brisect/blob/main/dist/brisect-0.1.2a1-py3-none-any.whl) the `brisect-x.x-py3-non-any.whl` file to a location on your device - note that the file you download will have a release version rather than `x.x`.
 - In the Miniforge console, change to the directory in which you saved the `*.whl` file.
 - Install the file: `python -m pip install brisect-x.x-py3-non-any.whl`. Change `x.x` to the version number you downloaded.
 
@@ -30,36 +30,43 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 ## To do list:
 
 - Zaber motion package:
-	- [x] Investigate how to move two devices at once, and make complex trajectory using both.
-		- [x] `move_relative()` fns take velocity arguments in v7 - cannot update beyond v6.
-		- [x] Manually reproduce move_relative using `axis.settings.set("maxspeed", velocity)` for each axis and then do the movement.
-		- [ ] Look at streaming to reduce stop/start motion when making arcs.
-			- Arc behaviour not entirely required but would be nice down the line.
-		- [ ] Investigate triggers to adjust speed to make arcs.
-	- [x] Specify trajectory using external definition (e.g. `yaml` file?)
-	- [ ] Offline usage (function `zaber_motion.Library.enable_device_db_store()` updates from internet - need alternative behaviour when not available).
+	- [x] Investigate how to make two devices move at once. Make a complicated trajectory using both.
+		- [x] Write equivalent for `move_relative(x, v)` function. In firmware >= v7 it takes velocity, in v6 it doesn't.
+			- Wrapper function sets velocity first, then moves. On shutdown, reset the velocity to original.
+		- [ ] Work out if streaming is feasible to reduce stop/start jerky motion when drawing out arcs.
+			- Not a priority as we can just move with right angles right now. Shelf it for now.
+	- [x] Feed in a trajectory from external file.
+		- [x] Use `yaml` to do it.
+		- (01/03/23) `ect-smart-scan.py` is now trying to work it out smartly - don't need to feed in trajectory externally.
+		- [ ] Make an example script which moves along an arbitrary path which is provided externally.
+	- [ ] Offline usage (function `zaber_motion.Library.enable_device_db_store()` updates from the internet. Alternative behaviour if offline.)
+	
 - Handyscope package:
 	- [x] Work out why Python cannot communicate with Handyscopes
 		- Current `python-libtiepie` version does not work with most recent drivers - use v8.1.9
-	- [ ] Read in magnitude and phase data.
-		- [x] Read in data in real time as well!
+	- [ ] Acquire magnitude and phase when processing.
+	- [x] Read in data in real time (or as close as possible).
 	- [x] Pass in and measure arbitrary signals.
-		- Currently, multiplexed signals of N single frequencies with different amplitudes supported.
-		- Bands and chirps would be of interest in the future, but not currently implemented.
-	- [x] Process input data to meaningful form.
-- Feedback loop for detection:
+		- [x] Multiplexed signals have default behaviour.
+		- [x] Method in Handyscope class to write any arbitrary signal. This is also accessible from `Handyscope.gen.set_data()`.
+			- May automate chirps and bandwidths later.
+	- [ ] Processing output data to meaningful form.
+		- [x] RMS, frequency spectrum data.
+- Feedback loop (`ect-smart-scan.py`):
 	- [x] Determine geometry of the part being inspected.
 		- [x] Coarse scan of entire domain with zaber.
 		- [x] In first instance, fit a box to metallic region.
 		- [ ] More clever prediction of geometry from resulting map.
 		  - [x] Snake around the full space until geometry found. At which point trace the edges of the geometry.
-		  - [ ] Trace the geometry: move back and forth over edge of geometry until a corner found. Use value of RMS to determine whether to turn left or right, and scan the next edge. Detect when the probe has returned to the start position.
+		  - [x] Trace the geometry: move back and forth over edge of geometry until a corner found. Use value of RMS to determine whether to turn left or right, and scan the next edge. Detect when the probe has returned to the start position.
 	- [x] Coarse scan of part for defects.
-		- [ ] Look for deviations from pristine material.
-		- [ ] Identify a way to return to these regions for a more fine scan
+		- [x] Look for deviations from pristine material.
+			- Can implement by reusing the sweep for the geometry.
+			- When scanning off and on the part, work out whether we are closer to one RMS or the other (i.e. vacuum vs part).
 	- [x] For RMS voltage: correct for vertical liftoff of probe.
 		- [x] In first instance treat it as linear `V = ax + by + c`
 		- [ ] Are there any non-linear effects in liftoff? May need to add other effects.
+		- Decision to move away from liftoff correction in post processing. Will instead try to correct mechanically with spring pushing coil down, and levelling the part as much as possible.
 	- [ ] For phase: compare phase difference of input signal to output signal.
 		- [x] Check how good our generated input signal is, vs channel measurement on handyscope
 			- Signal looks very good, small amount of noise but not awful.  
@@ -69,3 +76,4 @@ To run from an IDE, the `yaml_filename` variable on line 33 must be changed. To 
 	- [x] Select a more appropriate frequency.
 	- [x] Run program from command line, return all useful analysis as plots or print to screen.
 	- [ ] GUI?
+		- What would be needed from a GUI? All the inputs, plus a window for where the scan goes?
