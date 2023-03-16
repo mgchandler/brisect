@@ -47,7 +47,7 @@ class Stage:
                 raise ValueError("Stage: initial_position should be a list of two coordinates")
             self.move_abs(initial_position, length_units=length_units)
         
-        self.mm_resolution = eps
+        self.mm_resolution = mm_resolution
         
     #%% Dunder methods.
     def __enter__(self):

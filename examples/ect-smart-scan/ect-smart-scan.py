@@ -44,23 +44,26 @@ if __name__ == "__main__":
             print(handyscope)
             
             # Look for the geometry and trace it out.
-            coordinates, rms_data, geom_coords = ect.domain_search(
+            coordinates, rms_data, geometry = ect.domain_search(
                 handyscope, 
-                stage, 
-                origin=[settings['trajectory']['init_x'], settings['trajectory']['init_y'], settings['trajectory']['init_z']],
-                width=100,
-                height=100,
+                stage,
+                origin=[50, 80, 11.8],
+                # origin=[settings['trajectory']['init_x'], settings['trajectory']['init_y'], settings['trajectory']['init_z']],
+                width=110,
+                height=110,
                 snake_separation=25,
-                fuzzy_separation=5
+                velocity=7.5,
+                fuzzy_separation=5,
+                # live_plot=True
             )
             
             # We have an approximation for the geometry. Scan within it to look for defects.
             coords, rms_scan, defect_coords = ect.domain_search(
                 handyscope,
                 stage,
-                origin="from geom_coords",
-                width="from geom_coords",
-                height="from geom_coords",
+                origin=[geometry['rect'][1][0]+10, geometry['rect'][1][1]+10, 11.8], #TODO: check that this unpacks correctly.
+                width=geometry['rect'][1][2]-20,
+                height=geometry['rect'][1][3]-20,
                 snake_separation=5,
                 fuzzy_separation=1
             )
@@ -69,4 +72,4 @@ if __name__ == "__main__":
             
             # Save the data.
             ect.plot_data(settings["job"]["name"], coords, rms_scan)
-            ect.save_csv(settings["job"]["name"], coordinates, rms_data)
+            ect.save_csv(settings["job"]["name"], np.squeeze(coordinates[0, :]), np.squeeze(coordinates[1, :]), np.squeeze(rms_data))

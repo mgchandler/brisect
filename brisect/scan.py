@@ -6,7 +6,7 @@ Created on Mon Dec 19 15:34:27 2022
 
 A file containing functions which combine the zaber stage and the handyscope.
 """
-from . import grid_sweep_coords, rms, within_radius
+from . import grid_sweep_coords, rms, within_radius, fit_geometry_to_data
 # N.B. only used for type hints. If a stage other than the one in .zaberstage
 # is used, that's fine as long as it follows the standardised format.
 from .handyscope import Handyscope
@@ -41,7 +41,12 @@ def domain_search(
     like search is performed to trace the outline of the geometry (called fuzzy
     sweep).
     
-    N.B. This function will replace grid_sweep_scan().
+    Note that while this function is written assuming that we are looking for
+    a geometry within a scan area, the same function is used to look for
+    defects within a geometry. In this case, variables which refer to "vacuum"
+    will actually refer to the geometry and variables which refer to "geometry"
+    will actually refer to defects. Ideally want to rename "vacuum"->"reference"
+    and "geometry"->"feature" or something like that to properly generalise.
 
     Parameters
     ----------
@@ -107,13 +112,16 @@ def domain_search(
     # If we ever deviate by >1%, count that as finding the geometry.
     find_geometry = lambda v: abs(v/off_geom - 1) > detection_threshold
     
+    geoms = []
+    
     #%% Start the scan.
     coordinates = np.zeros((len(stage.axes), 0))
-    rms_data = np.zeros((1, 0))
-    for idx, step in enumerate(coords):
-        # Do the actual scan
-        if live_plot:
-            coords, rms_scan, break_state = linear_scan(
+    rms_data = None
+    for idx, step in enumerate(coords[1:, :]):
+        # Loop here in case we found something and did not complete the scan.
+        while not within_radius(step, stage.get_position(length_units), fuzzy_separation):        
+            # Do the actual scan
+            scan_locs, rms_scan, break_state = linear_scan(
                 handyscope,
                 stage,
                 step,
@@ -121,54 +129,246 @@ def domain_search(
                 velocity=velocity,
                 velocity_units=velocity_units,
                 break_fn=find_geometry,
-                live_plot=True,
+                live_plot=live_plot,
                 old_val=rms_data
             )
-        else:
-            coords, rms_scan, break_state = linear_scan(
-                handyscope,
-                stage,
-                step,
-                length_units=length_units,
-                velocity=velocity,
-                velocity_units=velocity_units,
-                break_fn=find_geometry
-            )
-        
-        # Store the data.
-        coordinates = np.append(coordinates, coords, axis=1)
-        rms_data = np.append(rms_data, rms_scan, axis=1)
-        
-        # If we have found the geometry
-        if break_state:
-            warnings.warn("Geometry tracing not yet implemented. Geometry found, continuing search.")
-            print("geometry found!")
-            direction = coordinates[:, 1] - coordinates[:, 0]
-            coords, rms_scan, geom_coords = trace_perimeter(
-                handyscope,
-                stage, 
-                direction, 
-                separation=fuzzy_separation, 
-                length_units=length_units, 
-                velocity=velocity, 
-                velocity_units=velocity_units,
-                live_plot=live_plot
-            )
+            
             # Store the data.
-            coordinates = np.append(coordinates, coords, axis=1)
-            rms_data = np.append(rms_data, rms_scan, axis=1)
+            coordinates = np.append(coordinates, scan_locs, axis=1)
+            if rms_data is None:
+                rms_data = rms_scan
+            else:
+                rms_data = np.append(rms_data, rms_scan, axis=1)
             
-            # Do some work to calculate what the geometry looks like.
-            
-            # Make a choice: do we terminate search now or keep going? If we 
-            # keep going, how do we know that we haven't found the same geometry?
-            
-            # Choose to end as we only expect to find one geometry.
-            break
+            # If we have found the geometry
+            if break_state:
+                # First check if we've seen it before. Work out smallest distance to
+                # each geom we've previously found.
+                distance_from_geom = []
+                for profile in geoms:
+                    geom_fn = profile[0][0]
+                    geom_params = profile[0][1]
+                    distance_from_geom.append(geom_fn(coordinates[:, -1], *geom_params)) #TODO: test that this unpacks like it should.
+                    
+                # If all of them are greater than some threshold, then it must be 
+                # new. Characterise it.
+                if np.all(np.asarray(distance_from_geom) > fuzzy_separation):
+                    # We haven't seen it before. Characterise it.
+                    direction = coordinates[:, -1] - coordinates[:, -2]
+                    # Work out if it has volume or not.
+                    stage.move(3*fuzzy_separation*direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+                    volume_v = rms(handyscope.get_record())
+                    stage.move(-3*fuzzy_separation*direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+                    # Is the current RMS closer to the geometry value or the off-geom
+                    # value? TODO: Check shape of rms_scan
+                    if abs(volume_v - off_geom) < abs(volume_v - rms_scan[-1]):
+                        # It has no volume
+                        geom_profile = "line"
+                        scan_locs, rms_scan = trace_line(
+                            handyscope,
+                            stage, 
+                            direction, 
+                            separation=fuzzy_separation, 
+                            length_units=length_units, 
+                            velocity=velocity, 
+                            velocity_units=velocity_units,
+                            live_plot=live_plot
+                        )
+                    else:
+                        # It has volume       
+                        geom_profile = "rect"
+                        scan_locs, rms_scan = trace_perimeter(
+                            handyscope,
+                            stage, 
+                            direction, 
+                            separation=fuzzy_separation, 
+                            length_units=length_units, 
+                            velocity=velocity, 
+                            velocity_units=velocity_units,
+                            live_plot=live_plot
+                        )
+                    # Store the data.
+                    coordinates = np.append(coordinates, scan_locs, axis=1)
+                    rms_data = np.append(rms_data, rms_scan, axis=1)
+                    
+                    # Determine what the geometry looks like.
+                    geoms.append(fit_geometry_to_data(scan_locs, rms_scan, geom_profile=geom_profile))
     
-    return coordinates, rms_data, geom_coords
+    if len(geoms) == 1:
+        geoms = geoms[0]
+    return coordinates, rms_data, geoms
 
 #%%
+def trace_line(
+        handyscope: Handyscope,
+        stage: Stage,
+        init_direction: np.ndarray[float],
+        separation: float = 1.,
+        length_units: "Units.LENGTH_XXX" = Units.LENGTH_MILLIMETRES,
+        velocity: float = 1.,
+        velocity_units: "Units.VELOCITY_XXX" = Units.VELOCITY_MILLIMETRES_PER_SECOND,
+        live_plot: bool = False,
+    ) -> Tuple[np.ndarray[float], np.ndarray[float], np.ndarray[float]]:
+    """
+    Traces a line, assuming that the line has no volume to it. The probe will
+    move back and forth over the edge, expecting to detect a change as it
+    passes over the line, to trace the edge in one direction. At a corner, no
+    change is expected to be found. Logic is similar to `trace_perimeter`.
+
+    Parameters
+    ----------
+    handyscope : Handyscope obj
+        Handyscope object from module `handyscope`. Should already have been
+        initialised.
+    stage : Stage obj
+        Stage object from module `trajectory`. Should already have been
+        initialised.
+    init_direction : np.ndarray[float]
+        Direction in which the stage was travelling when the edge of the
+        geometry was just found. By convention, the trace scan will start
+        scanning to the right of this initial direction.
+    separation : float, optional
+        Separation between each pass over the edge of the geometry. The default
+        is 1.
+    length_units : Units.LENGTH_XXX, optional
+        Units in which all distances are provided. The default is
+        Units.LENGTH_MILLIMETRES.
+    velocity : float, optional
+        Velocity at which to perform the scan. This should be slower than the
+        value which would be used in geometry_search(). The default is 1.
+    velocity_units : Units.VELOCITY_XXX, optional
+        Units in which velocity is provided. The default is
+        Units.VELOCITY_MILLIMETRES_PER_SECOND.
+    live_plot : bool, optional
+        Whether to plot each point which is detected in the geometry. The
+        default is False.
+        
+    Returns
+    -------
+    coordinates : np.ndarray[float] (N, M)
+        Coordinates of the stage when the mth scan was taken.
+    rms_data : np.ndarray[float] (1, M)
+        Data acquired by the handyscope during the scan.
+    geom_coords : np.ndarray[float]
+        Approximated coordinates of the geometry, found from `coordinates` and
+        `rms_data` by working out the coordinates where |dV/dr| is largest, as
+        this is assumed to be where we make the transition from vac to geom.
+    """
+    #%% Initialise start direction. Make it a unit vector of size == len(stage.axes)
+    init_direction = np.squeeze(init_direction).reshape((-1, 1))
+    if init_direction.shape[0] > len(stage.axes):
+        raise ValueError("brisect.trace_line: init_direction should be a vector of coodinates with length <= the number of axes.")
+    if len(stage.axes) < 2:
+        raise ValueError("brisect.trace_line: geometry tracing requires at least two axes.")
+    if init_direction.shape[0] != len(stage.axes):
+        init_direction = np.append(init_direction, np.zeros((len(stage.axes)-init_direction.shape[0], 1)), axis=0)
+    init_direction /= np.linalg.norm(init_direction)
+    # Record the start position. Used to check whether we have completed tracing and terminate the loop.
+    origin = stage.get_position(length_units)
+    # Define rotation matrices for changing cardinal directions later.
+    cwise = np.identity(len(stage.axes))
+    ccwise = np.identity(len(stage.axes))
+    cwise[:2, :2] = [[0, -1], [1, 0]]
+    ccwise[:2, :2] = [[0, 1], [-1, 0]]
+    # Define initial cardinal direction.
+    cardinal = np.dot(cwise, init_direction)
+    
+    # Define break functions for moving over the line. Assume that the current
+    # location is as low as voltage will be.
+    vac_rms = rms(handyscope.get_record())
+    stage.move(-5*separation*init_direction, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="rel", wait_until_idle=True)
+    geom_rms = rms(handyscope.get_record())
+    stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
+    crack_found = lambda v: abs(v - vac_rms) > abs(v - geom_rms)
+    
+    # geom_coords = np.zeros((len(stage.axes), 0))
+    coordinates = np.zeros((len(stage.axes), 0))
+    rms_data = np.zeros((1, 0))
+    
+    #%% We do not know where on the line we have started, so assume that we are
+    # not at an end. Start tracing the line in one direction and move until we
+    # find an end, then trace back in the other direction until we find the 
+    # other end.
+    turns_since_last_seen = 0
+    current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
+    # We have just found the geometry, meaning that we are sat on top of it.
+    while turns_since_last_seen < 4:
+        # geom_coords = np.append(geom_coords, current_pos, axis=1)
+        # Step once and move towards the crack.
+        stage.move(
+            # Move √(2)*d at 45°: assume we are still on the geometry. Any
+            # further and the cardinal direction would be ±90°.
+            separation*cardinal + separation*np.dot(ccwise, cardinal),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            mode="rel",
+            wait_until_idle=True
+        )
+        coords, scan_data, break_state = linear_scan(
+            handyscope,
+            stage,
+            3*separation*np.dot(cwise, cardinal),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            move_mode="rel",
+            break_fn=crack_found
+        )
+        coordinates = np.append(coordinates, coords, axis=1)
+        rms_data = np.append(rms_data, scan_data, axis=1)
+        current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
+        # Are we still on the sample? Scan will not have broken if so.
+        if not break_state:
+            # Assume we are at a corner. Rotate cardinal direction +90°, and
+            # restart the loop.
+            cardinal = np.dot(cwise, cardinal)
+            turns_since_last_seen + 1
+        else:
+            turns_since_last_seen = 0
+    
+    #%% We must have made a full 360 since the crack was last seen - must be at
+    # one end. Start going in the other direction.
+    turns_since_last_seen = 0
+    stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
+    cardinal = np.dot(ccwise, init_direction)
+    while turns_since_last_seen < 4:
+        # geom_coords = np.append(geom_coords, current_pos, axis=1)
+        # Step once and move towards the crack.
+        stage.move(
+            # Move √(2)*d at 45°: assume we are still on the geometry. Any
+            # further and the cardinal direction would be ±90°.
+            separation*cardinal + separation*np.dot(ccwise, cardinal),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            mode="rel",
+            wait_until_idle=True
+        )
+        coords, scan_data, break_state = linear_scan(
+            handyscope,
+            stage,
+            3*separation*np.dot(cwise, cardinal),
+            length_units=length_units,
+            velocity=velocity,
+            velocity_units=velocity_units,
+            move_mode="rel",
+            break_fn=crack_found
+        )
+        coordinates = np.append(coordinates, coords, axis=1)
+        rms_data = np.append(rms_data, scan_data, axis=1)
+        current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
+        # Are we still on the sample? Scan will not have broken if so.
+        if not break_state:
+            # Assume we are at a corner. Rotate cardinal direction +90°, and
+            # restart the loop.
+            cardinal = np.dot(cwise, cardinal)
+            turns_since_last_seen + 1
+        else:
+            turns_since_last_seen = 0
+        
+    return coordinates, rms_data#, geom_coords
+
 def trace_perimeter(
         handyscope: Handyscope,
         stage: Stage,
@@ -257,7 +457,7 @@ def trace_perimeter(
     # Reset initial position.
     stage.move(origin, length_units=length_units, velocity=velocity, velocity_units=velocity_units, mode="abs", wait_until_idle=True)
     
-    geom_coords = np.zeros((len(stage.axes), 0))
+    # geom_coords = np.zeros((len(stage.axes), 0))
     coordinates = np.zeros((len(stage.axes), 0))
     rms_data = np.zeros((1, 0))
     
@@ -269,8 +469,8 @@ def trace_perimeter(
     first = True
     current_pos = np.asarray(stage.get_position(length_units)).reshape(-1, 1)
     # We have just found the geometry, meaning that we are sat on top of it.
-    while first or not within_radius(origin, current_pos, separation):
-        geom_coords = np.append(geom_coords, current_pos, axis=1)
+    while first or not within_radius(origin, current_pos, 1.5*separation):
+        # geom_coords = np.append(geom_coords, current_pos, axis=1)
         # Step once and move off the geometry.
         stage.move(
             # Move √(2)*d at 45°: assume we are still on the geometry. Any
@@ -308,7 +508,7 @@ def trace_perimeter(
         
         break_state = False
         while not break_state:
-            geom_coords = np.append(geom_coords, current_pos, axis=1)
+            # geom_coords = np.append(geom_coords, current_pos, axis=1)
             # Step once and move on the geometry.
             stage.move(
                 separation*cardinal + separation*np.dot(cwise, cardinal),
@@ -318,7 +518,7 @@ def trace_perimeter(
                 mode="rel",
                 wait_until_idle=True
             )
-            coordinates, scan_data, break_state = linear_scan(
+            coords, scan_data, break_state = linear_scan(
                 handyscope,
                 stage,
                 3*separation*np.dot(ccwise, cardinal),
@@ -346,7 +546,7 @@ def trace_perimeter(
         if first and not within_radius(origin, current_pos, separation):
             first = False
         
-    return coordinates, rms_data, geom_coords
+    return coordinates, rms_data#, geom_coords
             
     
 #%%
@@ -505,6 +705,8 @@ def linear_scan(
     scan_mode = scan_mode.lower()
     if scan_mode not in valid_scans:
         raise ValueError("scan.linear_scan: scan mode must be one of {}".format(valid_scans))
+    if old_val is not None:
+        old_val = np.squeeze(old_val)
         
     # Initialise output arrays
     coordinates = np.zeros((len(stage.axes), 0))
@@ -537,11 +739,11 @@ def linear_scan(
             ax1 = fig.add_subplot(111)
             if scan_mode == "rms":
                 if old_val is not None:
-                    plt.plot(list(old_val[-100+len(scan_val):]) + scan_val)
+                    plt.plot(np.append(old_val[-100+len(scan_data):], scan_data))
                 else:
-                    plt.plot(scan_val)
+                    plt.plot(scan_data)
             elif scan_mode == "spec":
-                ax1.plot(freq*1e-6, np.abs(scan_val[-1]))
+                ax1.plot(freq*1e-6, np.abs(scan_data[-1]))
             plt.show(block=False)
         
         # Check whether to break

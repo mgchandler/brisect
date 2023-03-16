@@ -108,7 +108,7 @@ def quad_liftoff_params(data):
     A = np.vstack([data[:, 0]**2, data[:, 0]*data[:, 1], data[:, 1]**2, data[:, 0], data[:, 1], np.ones(data.shape[0])]).T
     return np.linalg.lstsq(A, data[:, 2], rcond=None)[0]
 
-def fit_geometry_to_data(*args, geom_profile="rect", init_params="default"):
+def fit_geometry_to_data(coordinates, scan_data, geom_profile="rect", init_params="default"):
     """
     Attempts to work out the geometry of the sample measured in "data" by using
     scipy's curve_fit function. Note that each geometry must have its own
@@ -128,48 +128,38 @@ def fit_geometry_to_data(*args, geom_profile="rect", init_params="default"):
             specify the initial parameters to use.
             
     """
-    if len(args) == 1:
-        data = args[0]
-    elif len(args) == 3:
-        num_pts = []
-        for arg in args:
-            num_pts.append(arg.shape[0])
-            # Check that data has the right dimensions
-            if len(arg.shape) != 1:
-                raise ValueError("correct_liftoff: Input data has the wrong shape.")
-            # Check that all inputs have the same number of data points.
-            if len(num_pts) != 0:
-                for pt in num_pts:
-                    if arg.shape[0] != pt:
-                        raise ValueError("correct_liftoff: Number of points in input arrays should be the same.")
-        data = np.array([args[0], args[1], args[2]]).T
-    else:
-        raise NotImplementedError("correct_liftoff: Wrong number of arguments provided.")
+    coordinates = np.squeeze(coordinates)
+    scan_data = np.squeeze(scan_data)
     
-    geom_profile_dict = {
-        "rect" : [lst_dist_from_rect, [80, 40, 50, 50, 0]],
-    }
-    if init_params == "default":
-        init_params = geom_profile_dict[geom_profile][1] 
+    if len(coordinates.shape) != 2:
+        raise ValueError("coordinates should be (N, M) ndarray")
     
     # We expect the largest change in voltage to occur when the probe is moving
     # from off the sample to on the geometry. Differentiate the measurements
     # and filter based on that.
-    grad = np.abs(np.diff(data[:, 2]) / np.linalg.norm([np.diff(data[:, 0]), np.diff(data[:, 1])]))
+    grad = np.abs(np.diff(scan_data[:]) / np.linalg.norm([np.diff(coordinates[0, :]), np.diff(coordinates[1, :])]))
     #TODO: Need to choose a more appropriate threshold.
-    grad_threshold = np.nanmax(grad)/10
-    data = data[:-1, :]
-    data = data[grad > grad_threshold, :]
+    grad_threshold = np.nanmax(grad)/2
+    coordinates = coordinates[:, :-1]
+    coordinates = coordinates[:, grad > grad_threshold]
+    
+    geom_profile_dict = {
+        "rect" : [lst_dist_from_rect, [np.nanmin(coordinates[0, :]), np.nanmin(coordinates[1, :]), np.nanmax(coordinates[0, :]) - np.nanmin(coordinates[0, :]), np.nanmax(coordinates[1, :]) - np.nanmin(coordinates[1, :]), 0]],
+        "circ" : [],
+        "line" : [dist_from_line, [np.nanmin(coordinates[0, :]), np.nanmin(coordinates[1, :]), np.nanmax(coordinates[0, :]), np.nanmax(coordinates[1, :])]],
+    }
+    if init_params == "default":
+        init_params = geom_profile_dict[geom_profile][1] 
     
     params, cov_mat = curve_fit(
         geom_profile_dict[geom_profile][0],
-        data[:, :2].T,
-        np.zeros(data.shape[0]),
+        coordinates[:2, :],
+        np.zeros(coordinates.shape[1]),
         p0=init_params
     )
-    return params
+    return {init_params:[geom_profile_dict[geom_profile][0], params]}
 
-def dist_from_line(pt, start, end):
+def dist_from_line(pt, start_x, start_y, end_x, end_y):
     """
     Calculates the distance of m points with coordinates "pt" from the line
     segment which starts at coordinates "start" and ends at "end". Note that as
@@ -255,9 +245,9 @@ def lst_dist_from_rect(pt, origin_x, origin_y, width, height, rotation):
     corner3 = origin + np.dot(np.asarray([width, height]), rotation_matrix)
     corner4 = origin + np.dot(np.asarray([0,     height]), rotation_matrix)
     # Calculate the distance to each of the four segments.
-    dist1 = dist_from_line(pt, corner1, corner2)
-    dist2 = dist_from_line(pt, corner2, corner3)
-    dist3 = dist_from_line(pt, corner3, corner4)
-    dist4 = dist_from_line(pt, corner4, corner1)
+    dist1 = dist_from_line(pt, corner1[0], corner1[1], corner2[0], corner2[1])
+    dist2 = dist_from_line(pt, corner2[0], corner2[1], corner3[0], corner3[1])
+    dist3 = dist_from_line(pt, corner3[0], corner3[1], corner4[0], corner4[1])
+    dist4 = dist_from_line(pt, corner4[0], corner4[1], corner1[0], corner1[1])
     # Get the smallest distance for each of the points.
     return np.min([dist1, dist2, dist3, dist4], axis=0)

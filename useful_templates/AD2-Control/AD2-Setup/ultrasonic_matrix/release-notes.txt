@@ -1,0 +1,29 @@
+Software Release Notes
+======================
+
+Project: University of Bristol Ultrasonic Controller Python Interface Module
+
+Project code: UOB02323
+
+Software Version Number: 0.5.0
+
+Date of Release: 2022-08-08
+
+Remove filter and voltage output settings from matrix_controller API.
+Exit function with no config changes if tx channel is set to same as rx channel. (except in the case where both are 0).
+
+Known Anomalies
+
+
+
+
+Software Version Number: 0.4.0
+
+Date of Release: 2022-07-27
+
+Waveform generator is now only active on one output at a time. Re-implement
+multiplexer shift register correctly, as they are daisy-chained.
+
+Known Anomalies
+Both analogue intpus are active during a measurement - may cause an issue
+at higher data rates?

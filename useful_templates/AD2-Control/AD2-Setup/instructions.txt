@@ -1,0 +1,26 @@
+University of Bristol Ultrasonic Array - Software Interface
+
+
+This is a python driver module for the Ultrasonic Array. It includes usage examples. 
+
+
+Getting started:
+1. Install the WaveForms software from Digilent, which includes the necessary SDK
+https://digilent.com/reference/software/waveforms/waveforms-3/start
+2. Install python and pip
+3. At the command line, use pip to install wheel, matplotlib, scipy, and numpy
+`
+    pip install wheel
+    pip install matplotlib
+    pip install numpy
+    pip install scipy
+`
+4. Extract ultrasonic_matrix-x_y_z zip file, and open command line in unzipped folder directory
+5. Type "pip install ." (zip file and extracted file can be deleted once installation is successful).
+6. Unzip examples folder, and execute from cli / your favourite IDE
+7. To import ultrasonic controller module into another python program, include the line:
+
+from ultrasonic_matrix import matrix_controller
+
+
+

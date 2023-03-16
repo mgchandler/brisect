@@ -191,16 +191,26 @@ def within_radius(
         origin: np.ndarray[float],
         coords: np.ndarray[float],
         radius: float
-    ):
+    ) -> Union[bool, np.ndarray[bool]]:
     """ 
     Checks whether coordinates are within a radius of the origin, returning a
     boolean of the result of the test.
     """
     origin = np.squeeze(origin)
+    if len(origin.shape) != 1:
+        raise ValueError("within_radius: origin should be a 1D vector.")
+    origin = origin.reshape(-1, 1)
     coords = np.squeeze(coords)
-    if len(origin.shape) != 1 or len(coords.shape) != 1 or origin.shape[0] != coords.shape[0]:
-        raise ValueError("within_radius: origin and coords must be 1D vectors of equal length.")
-    distance = np.linalg.norm(coords - origin)
+    if coords.shape[0] != origin.shape[0]:
+        raise ValueError("within_radius: coords and origin should have the same number of dimensions.")
+    if len(coords.shape) == 1:
+        coords = coords.reshape(-1, 1)
+    elif len(coords.shape) > 2:
+        raise ValueError("within_radius: coords has the wrong shape.")
+        
+    distance = np.linalg.norm(coords - origin, axis=0)
+    if len(distance) == 1:
+        distance = distance[0]
     return distance < radius
 
 def grid_sweep_coords(

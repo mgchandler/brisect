@@ -127,8 +127,8 @@ class Handyscope:
         self.gen.amplitude   = np.max(input_amplitude)
         self.gen.offset      = input_offset
         self.gen.output_on   = True
-        if hstype == "HS5":
-            self.gen.burst_count = input_burst_count
+        # if hstype == "HS5":
+        #     self.gen.burst_count = input_burst_count
         
     #%% Initialisation classmethod.
     @classmethod
